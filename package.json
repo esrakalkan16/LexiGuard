@@ -1,0 +1,23 @@
+{
+  "name": "lexiguard",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "lerna run dev --parallel",
+    "dev:ios": "lerna run dev:ios --parallel"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "type": "commonjs",
+  "dependencies": {},
+  "devDependencies": {
+    "lerna": "^9.0.7"
+  }
+}
