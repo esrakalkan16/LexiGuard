@@ -1,12 +1,17 @@
 {
   "name": "lexiguard",
   "version": "1.0.0",
-  "description": "",
+  "description": "LexiGuard — NLP Tabanlı Sözleşme Analiz Platformu",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "lerna run dev --parallel",
-    "dev:ios": "lerna run dev:ios --parallel"
+    "dev": "lerna run dev --parallel --scope=web --scope=backend",
+    "dev:all": "lerna run dev --parallel",
+    "dev:ios": "lerna run dev:ios --parallel",
+    "dev:web": "lerna run dev --scope=web",
+    "dev:backend": "lerna run dev --scope=backend",
+    "dev:mobile": "lerna run dev --scope=mobile",
+    "dev:nlp": "cd packages/nlp && uvicorn main:app --reload --port 8000"
   },
   "keywords": [],
   "author": "",

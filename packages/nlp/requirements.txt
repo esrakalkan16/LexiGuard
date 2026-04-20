@@ -1,0 +1,14 @@
+# Web çatısı
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+pydantic==2.11.3
+python-dotenv==1.1.0
+
+# CORS
+httpx==0.28.1
+
+# NLP (Faz 5 için — şimdilik yorum satırı)
+# torch==2.6.0
+# transformers==4.51.3
+# datasets==3.5.0
+# scikit-learn==1.6.1

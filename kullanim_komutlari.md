@@ -1,56 +1,101 @@
-# Monorepo Kullanım Komutları
+# LexiGuard — Kullanım Kılavuzu
 
-Bu proje bir Lerna monorepo'sudur ve `packages/` dizini altında backend, web ve mobil uygulamalarını barındırır. Projenin ana katmanlarını ayağa kaldırmak için çeşitli terminal sekmelerine ihtiyacınız olacak.
+## Proje Yapısı
 
-## 1. Backend (API) Başlatma
-Verilerin sunulduğu ana sunucuyu çalıştırmak için:
-
-```bash
-cd packages/backend
-npm start
 ```
-*Geliştirme sunucusu `http://localhost:3000` adresinde çalışmaya başlayacaktır.*
-
-## 2. Web Geliştirme Ortamını (Vite + React) Başlatma
-Hazırladığımız web arayüzünü tarayıcıda görmek için ayrı bir terminalde:
-
-```bash
-cd packages/web
-npm run dev
+LexiGuard/
+├── packages/
+│   ├── web/        → Next.js 14 Web Arayüzü        (port: 3001)
+│   ├── backend/    → Express.js API Gateway         (port: 3000)
+│   ├── nlp/        → FastAPI Python NLP Servisi     (port: 8000)
+│   └── mobile/     → React Native Mobil Uygulama
 ```
-*Bu komut size yerel bir link (örn: `http://localhost:5173`) verecektir. Linke tıklayıp web arayüzünü görebilirsiniz.*
-
-## 3. Mobil Ortamı (React Native) Başlatma
-Mobil uygulamayı emülatörde veya gerçek cihazda test edebilmek için ayrı bir terminalde:
-
-**Android İçin:**
-```bash
-cd packages/mobile
-npm run android
-```
-
-**iOS İçin (Sadece Mac ortamlarında çalışır):**
-```bash
-cd packages/mobile
-npm run ios
-```
-
-## 4. Hepsini Aynı Anda Çalıştırma (Tek Komutla)
-Lerna sayesinde tüm paketleri (web, backend ve mobil) tek bir terminal üzerinden aynı anda başlatabilirsiniz. Bunu yapmak için projenin **en dış dizininde** (`fullstackProject` klasöründe) şu komutları kullanabilirsiniz:
-
-**Android testleri dahil tüm projeleri başlatmak için:**
-```bash
-npm run dev
-```
-
-**iOS testleri dahil tüm projeleri başlatmak için:**
-```bash
-npm run dev:ios
-```
-*(Bu komutlar; web için Vite'ı, backend için Node sunucusunu ve mobile için ilgili Native başlatıcıyı otomatik olarak tetikler.)*
 
 ---
 
-> **Notlar:**
-> - Projeyi başka bir cihaza kopyaladığınızda sadece en dış klasörde (`fullstackProject` içerisinde) bir kez `npm install` demeniz tüm projelerin (web, mobile, backend) kütüphanelerini kurmak ve birbirine bağlamak için yeterlidir. Lerna bu işlemi otomatik tanır.
-> - Hepsini aynı anda (`npm run dev`) çalıştırdığınızda terminalde tüm loglar her bir proje için kendi prefix'i (örn: `web:`, `backend:`) ile renklendirerek akacaktır.
+## Kurulum
+
+### 1. Node bağımlılıkları
+```bash
+npm install
+```
+
+### 2. Python NLP servisi bağımlılıkları
+```bash
+cd packages/nlp
+python3 -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+---
+
+## Servisleri Başlatma
+
+### Web + Backend (Önerilen — Mobil hata vermez)
+```bash
+npm run dev
+```
+
+### Tümünü birden (Mobile dahil — Android emülatör gerektirir)
+```bash
+npm run dev:all
+```
+
+### Ayrı ayrı
+```bash
+# Web (Next.js) → http://localhost:3001
+npm run dev:web
+
+# Backend (Express) → http://localhost:3000
+npm run dev:backend
+
+# NLP Mikroservisi (Python/FastAPI) → http://localhost:8000
+npm run dev:nlp
+# veya direkt:
+cd packages/nlp && source venv/bin/activate && uvicorn main:app --reload --port 8000
+
+# Mobil (React Native) — Metro + Emülatör
+npm run dev:mobile      # Android
+npm run dev:ios         # iOS
+```
+
+---
+
+## API Dokümantasyonu
+
+| Servis | URL |
+|--------|-----|
+| Backend API | http://localhost:3000 |
+| NLP Servisi | http://localhost:8000 |
+| NLP Swagger Docs | http://localhost:8000/docs |
+| Web Arayüzü | http://localhost:3001 |
+
+### Analiz Endpoint Örneği
+```bash
+curl -X POST http://localhost:3000/api/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "We share your data with third parties and advertising partners. Auto-renew unless cancelled.",
+    "company_name": "Örnek Şirket",
+    "source_url": "https://example.com/terms"
+  }'
+```
+
+### Beklenen Yanıt
+```json
+{
+  "company_name": "Örnek Şirket",
+  "source_url": "https://example.com/terms",
+  "risk_score": 55,
+  "risk_level": "medium",
+  "summary": "Bu sözleşme ... 2 risk maddesi içermektedir.",
+  "risk_items": [
+    {
+      "category": "Üçüncü Taraflarla Veri Paylaşımı",
+      "risk_level": "high",
+      "matched_keywords": ["third parties", "advertising partners"]
+    }
+  ]
+}
+```
