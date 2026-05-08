@@ -99,7 +99,7 @@ export default function Sidebar() {
         />
         <SidebarItem
           icon={BarChart3}
-          label="Analytics"
+          label="My Analyses"
           active={isActive("/dashboard/intelligence")}
           href="/dashboard/intelligence"
         />

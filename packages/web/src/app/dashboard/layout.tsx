@@ -1,4 +1,7 @@
+"use client";
+
 import { useEffect, useState } from "react";
+
 import { usePathname, useRouter } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 import { Search, User } from "lucide-react";

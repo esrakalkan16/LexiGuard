@@ -1,4 +1,5 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').resolve(__dirname, '.env') });
+
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
@@ -98,7 +99,12 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
             const token = authHeader.split(' ')[1];
             const { data: { user }, error: authError } = await supabase.auth.getUser(token);
             
+            if (authError) {
+                console.error('Auth Hatası:', authError.message);
+            }
+
             if (!authError && user) {
+                console.log('Kullanıcı bulundu:', user.id, 'Sözleşme kaydediliyor...');
                 const { data: contract, error: dbError } = await supabase
                     .from('contracts')
                     .insert({
@@ -106,17 +112,22 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
                         filename: filename,
                         content_text: text.substring(0, 5000), // Sadece ilk 5000 karakteri saklayalım
                         analysis_results: data,
-                        risk_score: data.overall_risk_score || 0
+                        risk_score: data.risk_score || 0
                     })
                     .select()
                     .single();
                 
                 if (dbError) {
-                    console.error('DB Kayıt Hatası:', dbError.message);
+                    console.error('DB Kayıt Hatası:', dbError.message, dbError.details, dbError.hint);
                 } else {
+                    console.log('Sözleşme başarıyla kaydedildi! ID:', contract.id);
                     savedData = contract;
                 }
+            } else {
+                console.log('Kullanıcı bulunamadı veya yetkisiz.');
             }
+        } else {
+            console.log('Authorization header bulunamadı, misafir olarak işleniyor.');
         }
 
         // Return to frontend with original filename and DB record if exists

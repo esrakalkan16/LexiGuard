@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 import {
   Upload,
   FileText,
@@ -27,12 +29,105 @@ interface AnalysisResult {
   classification: string;
 }
 
-export default function AnalyzerPage() {
+import { Suspense } from "react";
+
+function AnalyzerContent() {
+  const searchParams = useSearchParams();
+  const idParam = searchParams.get("id");
+  const supabase = createClient();
+
   const [file, setFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (idParam) {
+      loadAnalysis(idParam);
+    }
+  }, [idParam]);
+
+  const loadAnalysis = async (id: string) => {
+    setAnalyzing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      let analysisData = null;
+
+      if (session?.user) {
+        const { data, error } = await supabase
+          .from("contracts")
+          .select("*")
+          .eq("id", id)
+          .single();
+          
+        if (data && !error) {
+          analysisData = data.analysis_results;
+        }
+      } 
+      
+      // If not found in Supabase or guest, check local storage
+      if (!analysisData) {
+        const historyStr = localStorage.getItem("analysis_history");
+        if (historyStr) {
+          const history = JSON.parse(historyStr);
+          const found = history.find((item: any) => item.id === id);
+          if (found) {
+            analysisData = found.analysisData;
+          }
+        }
+      }
+
+      if (analysisData) {
+        // Map the backend data format to the frontend AnalysisResult format
+        const riskLevelMap: Record<string, "Yüksek" | "Orta" | "Düşük"> = {
+          high: "Yüksek",
+          medium: "Orta",
+          low: "Düşük",
+        };
+
+        const suggestionMap: Record<string, string> = {
+          high: "Bu maddeyi hukuk danışmanınızla birlikte gözden geçirmenizi ve olası değişiklikler için müzakere etmenizi öneriyoruz.",
+          medium: "Bu maddeyi dikkatlice okuyun ve gerekirse aydınlatıcı bir ek madde eklenmesini talep edin.",
+          low: "Standart bir madde olsa da içeriğin sizin durumunuza uygun olduğunu teyit edin.",
+        };
+
+        const riskItems: AnalysisResult["risks"] = (analysisData.risk_items || []).map(
+          (item: any) => ({
+            clause: item.category,
+            level: riskLevelMap[item.risk_level] ?? "Düşük",
+            description: item.description,
+            suggestion: suggestionMap[item.risk_level] ?? suggestionMap.low,
+          })
+        );
+
+        const strengths: string[] = (analysisData.risk_items || [])
+          .filter((item: any) => item.risk_level === "low")
+          .slice(0, 4)
+          .map((item: any) => `${item.category}: ${item.description}`);
+
+        const classification: string =
+          analysisData.risk_items?.[0]?.category ||
+          (analysisData.risk_score > 60 ? "Yüksek Riskli Sözleşme" :
+           analysisData.risk_score > 30 ? "Orta Riskli Sözleşme" : "Düşük Riskli Sözleşme");
+
+        setResult({
+          summary: analysisData.summary || "",
+          risk_score: analysisData.risk_score || 0,
+          risks: riskItems,
+          strengths,
+          classification,
+        });
+      } else {
+        setError("Analiz bulunamadı.");
+      }
+    } catch (err: any) {
+      setError("Analiz yüklenirken hata oluştu.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -65,12 +160,19 @@ export default function AnalyzerPage() {
     setError(null);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
       const formData = new FormData();
       formData.append("file", file);
 
       const response = await fetch("http://localhost:3000/api/analyze", {
         method: "POST",
         body: formData,
+        headers: headers
       });
 
       if (!response.ok) {
@@ -149,7 +251,7 @@ export default function AnalyzerPage() {
             : score > 30
             ? "bg-amber-50 text-amber-700 border-amber-100"
             : "bg-blue-50 text-primary border-blue-100",
-        id: `LX-${Math.floor(Math.random() * 10000)}-2024`,
+        id: data.db_record?.id || `LX-${Math.floor(Math.random() * 10000)}-2024`,
         analysisData: data,
       };
       localStorage.setItem(
@@ -409,5 +511,13 @@ export default function AnalyzerPage() {
         </AnimatePresence>
       )}
     </div>
+  );
+}
+
+export default function AnalyzerPage() {
+  return (
+    <Suspense fallback={<div className="p-12 text-center text-slate-500">Yükleniyor...</div>}>
+      <AnalyzerContent />
+    </Suspense>
   );
 }

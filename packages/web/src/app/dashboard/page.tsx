@@ -52,43 +52,57 @@ const StatCard = ({
   </div>
 );
 
+import { createClient } from "@/utils/supabase/client";
+import { useRouter } from "next/navigation";
+
 export default function DashboardOverview() {
+  const router = useRouter();
   const [analyses, setAnalyses] = useState<any[]>([]);
+  const [selectedAnalysis, setSelectedAnalysis] = useState<any | null>(null);
+  const supabase = createClient();
 
   useEffect(() => {
-    const historyStr = localStorage.getItem("analysis_history");
-    if (historyStr) {
-      setAnalyses(JSON.parse(historyStr));
-    } else {
-      setAnalyses([
-        {
-          name: "SaaS_Agreement_Alpha.pdf",
-          type: "SaaS",
-          status: "High Risk",
-          date: "2h ago",
-          score: 82,
-        },
-        {
-          name: "Service_Protocol_v2.docx",
-          type: "Service",
-          status: "Low Risk",
-          date: "Yesterday",
-          score: 12,
-        },
-        {
-          name: "NDA_Final.txt",
-          type: "NDA",
-          status: "Secure",
-          date: "3d ago",
-          score: 4,
-        },
-      ]);
-    }
+    const fetchAnalyses = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        const { data, error } = await supabase
+          .from("contracts")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(5);
+
+        if (data && !error) {
+          const formatted = data.map((d: any) => ({
+            name: d.filename,
+            type: d.analysis_results?.classification || "Belge",
+            status: d.risk_score > 70 ? "High Risk" : d.risk_score > 30 ? "Low Risk" : "Secure",
+            date: new Date(d.created_at).toLocaleDateString("tr-TR"),
+            score: d.risk_score || 0,
+            id: d.id,
+          }));
+          setAnalyses(formatted);
+          return;
+        }
+      }
+
+      // Guest fallback
+      const historyStr = localStorage.getItem("analysis_history");
+      if (historyStr) {
+        setAnalyses(JSON.parse(historyStr).slice(0, 5));
+      } else {
+        setAnalyses([]);
+      }
+    };
+
+    fetchAnalyses();
   }, []);
 
+
   return (
-    <div className="space-y-10">
-      {/* Stats Grid */}
+    <div className="w-full">
+      <div className="space-y-10">
+        {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard icon={FileSearch} label="Total Analysis" value="48" color="blue" />
         <StatCard icon={AlertCircle} label="Active Risks" value="12" color="amber" />
@@ -125,14 +139,15 @@ export default function DashboardOverview() {
               const date = item.date || "";
               const type = item.type || "";
 
-              return (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.1 }}
-                  key={i}
-                  className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer group"
-                >
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: i * 0.1 }}
+                      key={i}
+                      onClick={() => setSelectedAnalysis(item)}
+                      className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer group"
+                    >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100 group-hover:bg-white group-hover:border-slate-200">
                       <FileText className="w-5 h-5 text-slate-400 group-hover:text-slate-600" />
@@ -241,6 +256,68 @@ export default function DashboardOverview() {
           </div>
         </div>
       </div>
+    </div>
+
+      {/* Modal Overlay */}
+      {selectedAnalysis && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          >
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">{selectedAnalysis.name}</h2>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-widest mt-1">
+                  {selectedAnalysis.type || "Belge"} • {selectedAnalysis.date}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedAnalysis(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition-colors"
+              >
+                <span className="text-xl leading-none">&times;</span>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+              <div className="mb-6 bg-white p-5 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between">
+                <div>
+                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Risk Durumu</h3>
+                  <div className="text-xl font-black text-slate-900">
+                    {selectedAnalysis.status?.toUpperCase() || "BİLİNMİYOR"}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Risk Skoru</h3>
+                  <div className={cn(
+                    "text-3xl font-black",
+                    (selectedAnalysis.score || parseInt(selectedAnalysis.risk) || 0) > 70 ? "text-rose-500" : (selectedAnalysis.score || parseInt(selectedAnalysis.risk) || 0) > 30 ? "text-amber-500" : "text-emerald-500"
+                  )}>
+                    {selectedAnalysis.score || parseInt(selectedAnalysis.risk) || 0}
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-widest mb-3">Analiz Özeti</h3>
+                <div className="bg-white p-5 rounded-xl border border-slate-100 shadow-sm text-sm text-slate-600 leading-relaxed">
+                  {selectedAnalysis.raw_analysis?.summary || selectedAnalysis.analysisData?.summary || "Bu sözleşme için detaylı özet bulunamadı. Yapay zeka risk skorunu ve kategorilerini belirledi."}
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => router.push(`/dashboard/analysis?id=${selectedAnalysis.id}`)}
+                  className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800 transition-colors uppercase tracking-widest"
+                >
+                  Detaylı Rapora Git
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

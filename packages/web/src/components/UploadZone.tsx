@@ -98,7 +98,7 @@ export default function UploadZone() {
         date: new Date().toLocaleDateString('tr-TR', { month: 'short', day: 'numeric', year: 'numeric' }),
         risk: `${data.risk_score}% ${data.risk_level_label.toUpperCase()}`,
         badge: data.risk_level === 'high' ? "bg-red-50 text-error border-red-100" : data.risk_level === 'medium' ? "bg-amber-50 text-amber-700 border-amber-100" : "bg-blue-50 text-primary border-blue-100",
-        id: `LX-${Math.floor(Math.random() * 10000)}-2024`,
+        id: data.db_record?.id || `LX-${Math.floor(Math.random() * 10000)}-2024`,
         analysisData: data
       };
       localStorage.setItem("analysis_history", JSON.stringify([newEntry, ...existingHistory]));
