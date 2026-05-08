@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
+import { User, Mail, Lock, ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -36,104 +38,125 @@ export default function RegisterPage() {
     } else {
       setSuccess(true);
       setLoading(false);
-      // Automatically redirect after a short delay if email confirmation is disabled
-      // setTimeout(() => router.push('/auth/login'), 3000);
     }
   };
 
   if (success) {
     return (
-      <div className="w-full max-w-md mx-auto text-center">
-        <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-8">
-          <span className="text-4xl">📧</span>
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="w-full text-center"
+      >
+        <div className="w-24 h-24 bg-slate-100 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
+          <ShieldCheck className="w-12 h-12 text-slate-900" />
         </div>
-        <h2 className="text-3xl font-bold text-white mb-4">E-posta Doğrulama</h2>
-        <p className="text-gray-400 mb-8 leading-relaxed">
-          Kaydınızı tamamlamak için <b>{email}</b> adresine gönderdiğimiz doğrulama bağlantısına tıklayın.
+        <h2 className="text-5xl font-black text-slate-900 mb-4 tracking-tighter">Doğrulama</h2>
+        <p className="text-slate-500 mb-10 leading-relaxed font-medium text-lg">
+          Kaydınızı tamamlamak için <b className="text-slate-900">{email}</b> adresine gönderdiğimiz bağlantıya tıklayın.
         </p>
         <Link 
           href="/auth/login" 
-          className="inline-block bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-8 py-3 rounded-xl transition-all"
+          className="inline-flex items-center gap-3 bg-slate-900 text-white font-black px-12 py-5 rounded-2xl hover:bg-black transition-all uppercase tracking-[0.2em] text-[12px] shadow-xl"
         >
-          Giriş Sayfasına Dön
+          Giriş Yap
+          <ArrowRight className="w-4 h-4" />
         </Link>
-      </div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="mb-10 text-center lg:text-left">
-        <h2 className="text-3xl font-bold text-white mb-2">Hesap Oluşturun</h2>
-        <p className="text-gray-400">LexiGuard'ın tüm özelliklerinden faydalanın.</p>
+    <motion.div 
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="w-full"
+    >
+      <div className="mb-12">
+        <h2 className="text-5xl font-black text-slate-900 mb-4 tracking-tighter">Hesap Aç</h2>
+        <p className="text-slate-500 text-lg font-medium tracking-tight">Ücretsiz katılarak analize başlayın.</p>
       </div>
 
       <form onSubmit={handleRegister} className="space-y-5">
         {error && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-xs font-bold uppercase tracking-widest text-center"
+          >
             {error}
-          </div>
+          </motion.div>
         )}
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300 ml-1">Ad Soyad</label>
-          <input
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-            className="w-full bg-[#111]/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-            placeholder="Adınız Soyadınız"
-          />
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Ad Soyad</label>
+          <div className="relative group">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-slate-900 transition-colors" />
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-medium"
+              placeholder="Adınız Soyadınız"
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300 ml-1">E-posta</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full bg-[#111]/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-            placeholder="ornek@eposta.com"
-          />
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">E-posta</label>
+          <div className="relative group">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-slate-900 transition-colors" />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-medium"
+              placeholder="isim@sirket.com"
+            />
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300 ml-1">Şifre</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="w-full bg-[#111]/50 border border-white/10 rounded-xl px-4 py-3 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-            placeholder="En az 6 karakter"
-          />
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Şifre</label>
+          <div className="relative group">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-slate-900 transition-colors" />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-medium"
+              placeholder="••••••••"
+            />
+          </div>
         </div>
 
-        <div className="pt-2">
+        <div className="pt-6">
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-4 rounded-xl shadow-lg shadow-indigo-600/20 transition-all active:scale-[0.98] disabled:opacity-50"
+            className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-200 hover:bg-black hover:shadow-2xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-[12px]"
           >
-            {loading ? 'Kaydolunuyor...' : 'Ücretsiz Kayıt Ol'}
+            {loading ? 'Kaydolunuyor...' : 'Hesap Oluştur'}
+            {!loading && <CheckCircle2 className="w-4 h-4" />}
           </button>
         </div>
       </form>
 
-      <div className="mt-8 text-center">
-        <p className="text-gray-500">
+      <div className="mt-10 pt-10 border-t border-slate-100 text-center lg:text-left">
+        <p className="text-slate-500 text-sm font-medium">
           Zaten hesabınız var mı?{' '}
-          <Link href="/auth/login" className="text-indigo-400 font-semibold hover:text-indigo-300">
+          <Link href="/auth/login" className="text-slate-900 font-bold hover:underline">
             Giriş Yapın
           </Link>
         </p>
       </div>
       
-      <p className="mt-8 text-[10px] text-gray-600 text-center uppercase tracking-widest leading-relaxed">
-        Kayıt olarak Kullanım Koşullarını ve Gizlilik Politikamızı <br /> kabul etmiş sayılırsınız.
+      <p className="mt-10 text-[10px] text-slate-400 text-center lg:text-left uppercase tracking-[0.2em] leading-relaxed font-bold">
+        Devam ederek <span className="text-slate-600 underline">Kullanım Koşullarını</span> ve <br /> <span className="text-slate-600 underline">Gizlilik Politikamızı</span> kabul etmiş sayılırsınız.
       </p>
-    </div>
+    </motion.div>
   );
 }

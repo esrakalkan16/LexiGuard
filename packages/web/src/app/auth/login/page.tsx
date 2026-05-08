@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
+import { Mail, Lock, ArrowRight } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -33,78 +35,86 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="w-full max-w-md mx-auto">
-      <div className="mb-10 text-center lg:text-left">
-        <h2 className="text-3xl font-bold text-white mb-2">Hoş Geldiniz</h2>
-        <p className="text-gray-400">Hesabınıza giriş yaparak devam edin.</p>
+    <motion.div 
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      className="w-full"
+    >
+      <div className="mb-12">
+        <h2 className="text-5xl font-black text-slate-900 mb-4 tracking-tighter">Giriş Yap</h2>
+        <p className="text-slate-500 text-lg font-medium tracking-tight">Hukuki zekaya erişmek için oturum açın.</p>
       </div>
 
       <form onSubmit={handleLogin} className="space-y-6">
         {error && (
-          <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-xs font-bold uppercase tracking-widest text-center"
+          >
             {error}
-          </div>
+          </motion.div>
         )}
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-300 ml-1">E-posta</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="w-full bg-[#111]/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-            placeholder="ornek@eposta.com"
-          />
+          <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">E-posta</label>
+          <div className="relative group">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-slate-900 transition-colors" />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-medium"
+              placeholder="isim@sirket.com"
+            />
+          </div>
         </div>
 
         <div className="space-y-2">
           <div className="flex justify-between items-center ml-1">
-            <label className="text-sm font-medium text-gray-300">Şifre</label>
-            <Link href="#" className="text-xs text-indigo-400 hover:text-indigo-300">Şifremi Unuttum</Link>
+            <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Şifre</label>
+            <Link href="#" className="text-[11px] font-bold text-slate-900 hover:underline uppercase tracking-widest">Unuttum</Link>
           </div>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            className="w-full bg-[#111]/50 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500 transition-all"
-            placeholder="••••••••"
-          />
+          <div className="relative group">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-slate-900 transition-colors" />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-12 pr-4 py-4 text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-slate-900/5 focus:border-slate-900 transition-all font-medium"
+              placeholder="••••••••"
+            />
+          </div>
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-4 rounded-xl shadow-lg shadow-indigo-600/20 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-slate-900 text-white font-black py-5 rounded-2xl shadow-xl shadow-slate-200 hover:bg-black hover:shadow-2xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-[12px]"
         >
-          {loading ? 'Giriş Yapılıyor...' : 'Giriş Yap'}
+          {loading ? 'Yükleniyor...' : 'Giriş Yap'}
+          {!loading && <ArrowRight className="w-4 h-4" />}
         </button>
       </form>
 
-      <div className="mt-8 text-center">
-        <p className="text-gray-500">
-          Hesabınız yok mu?{' '}
-          <Link href="/auth/register" className="text-indigo-400 font-semibold hover:text-indigo-300">
+      <div className="mt-10 pt-10 border-t border-slate-100">
+        <p className="text-slate-500 text-sm font-medium mb-6">
+          Henüz hesabınız yok mu?{' '}
+          <Link href="/auth/register" className="text-slate-900 font-bold hover:underline">
             Hemen Kayıt Olun
           </Link>
         </p>
-      </div>
-      
-      <div className="mt-6 flex items-center gap-4">
-        <div className="h-[1px] flex-1 bg-white/5"></div>
-        <span className="text-xs text-gray-600 uppercase tracking-widest">Veya</span>
-        <div className="h-[1px] flex-1 bg-white/5"></div>
-      </div>
-      
-      <div className="mt-6">
+
         <Link 
           href="/dashboard" 
-          className="block w-full text-center py-3.5 border border-white/5 rounded-xl text-gray-400 hover:bg-white/5 transition-all"
+          className="flex items-center justify-center gap-3 w-full py-4 bg-white border border-slate-200 rounded-2xl text-slate-500 text-[11px] font-bold uppercase tracking-[0.2em] hover:bg-slate-50 hover:text-slate-900 transition-all group"
         >
           Kayıt Olmadan Devam Et
+          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </Link>
       </div>
-    </div>
+    </motion.div>
   );
 }

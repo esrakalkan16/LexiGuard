@@ -52,7 +52,7 @@ function AnalyzerContent() {
     setAnalyzing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       let analysisData = null;
 
       if (session?.user) {
@@ -61,12 +61,12 @@ function AnalyzerContent() {
           .select("*")
           .eq("id", id)
           .single();
-          
+
         if (data && !error) {
           analysisData = data.analysis_results;
         }
-      } 
-      
+      }
+
       // If not found in Supabase or guest, check local storage
       if (!analysisData) {
         const historyStr = localStorage.getItem("analysis_history");
@@ -110,7 +110,7 @@ function AnalyzerContent() {
         const classification: string =
           analysisData.risk_items?.[0]?.category ||
           (analysisData.risk_score > 60 ? "Yüksek Riskli Sözleşme" :
-           analysisData.risk_score > 30 ? "Orta Riskli Sözleşme" : "Düşük Riskli Sözleşme");
+            analysisData.risk_score > 30 ? "Orta Riskli Sözleşme" : "Düşük Riskli Sözleşme");
 
         setResult({
           summary: analysisData.summary || "",
@@ -214,7 +214,7 @@ function AnalyzerContent() {
       const classification: string =
         data.risk_items?.[0]?.category ||
         (data.risk_score > 60 ? "Yüksek Riskli Sözleşme" :
-         data.risk_score > 30 ? "Orta Riskli Sözleşme" : "Düşük Riskli Sözleşme");
+          data.risk_score > 30 ? "Orta Riskli Sözleşme" : "Düşük Riskli Sözleşme");
 
       const analysisResult: AnalysisResult = {
         summary: data.summary || "",
@@ -249,8 +249,8 @@ function AnalyzerContent() {
           score > 70
             ? "bg-red-50 text-error border-red-100"
             : score > 30
-            ? "bg-amber-50 text-amber-700 border-amber-100"
-            : "bg-blue-50 text-primary border-blue-100",
+              ? "bg-amber-50 text-amber-700 border-amber-100"
+              : "bg-blue-50 text-primary border-blue-100",
         id: data.db_record?.id || `LX-${Math.floor(Math.random() * 10000)}-2024`,
         analysisData: data,
       };
@@ -360,32 +360,74 @@ function AnalyzerContent() {
             </button>
             <button
               onClick={handleStartAnalysis}
-              className="flex-[2] px-4 py-3 rounded-lg bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+              className="flex-[2] px-6 py-4 rounded-xl bg-slate-900 text-white text-[11px] font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-3 uppercase tracking-[0.2em] shadow-xl shadow-slate-200 group"
             >
-              <Zap className="w-4 h-4 text-amber-400" />
+              <Zap className="w-4 h-4 text-amber-400 group-hover:scale-125 transition-transform" />
               Secure Extract
             </button>
           </div>
         </motion.div>
       )}
 
-      {/* Analyzing spinner */}
+      {/* Analyzing spinner - Premium Version */}
       {analyzing && (
-        <div className="flex flex-col items-center justify-center py-24 space-y-6">
+        <div className="flex flex-col items-center justify-center py-32 space-y-8">
           <div className="relative">
-            <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-              className="w-16 h-16 border-2 border-slate-100 border-t-slate-900 rounded-full"
-            />
+            {/* Outer Glow - Neutralized */}
+            <div className="absolute inset-0 bg-slate-400/10 blur-3xl rounded-full scale-150 animate-pulse" />
+            
+            {/* Main Spinner Core */}
+            <div className="relative w-24 h-24">
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 border-[3px] border-slate-100 rounded-full"
+              />
+              <motion.div
+                animate={{ rotate: -360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 border-[3px] border-transparent border-t-slate-900 rounded-full"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <ShieldAlert className="w-8 h-8 text-slate-900 animate-bounce" />
+              </div>
+            </div>
           </div>
-          <div className="text-center">
-            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-[0.2em]">
-              Processing Core
+
+          <div className="text-center space-y-4 max-w-xs mx-auto">
+            <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em] animate-pulse">
+              AI Processing Engine
             </h3>
-            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-2 animate-pulse">
-              Running BERT Legal-NLP Pipeline...
-            </p>
+            
+            <div className="space-y-2">
+              <div className="flex items-center gap-3 justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-900 animate-ping" />
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest leading-none">
+                  Legal-BERT Pipeline Active
+                </p>
+              </div>
+              <p className="text-slate-300 text-[9px] font-medium leading-relaxed italic">
+                Sözleşme maddeleri taranıyor ve risk skorları hesaplanıyor. Bu işlem belgenin uzunluğuna göre 3-5 saniye sürebilir.
+              </p>
+            </div>
+
+            {/* Simulated Progress Steps */}
+            <div className="flex gap-1 justify-center pt-2">
+              {[0, 1, 2, 3].map((i) => (
+                <motion.div
+                  key={i}
+                  animate={{ 
+                    backgroundColor: ["#e2e8f0", "#0f172a", "#e2e8f0"],
+                  }}
+                  transition={{ 
+                    duration: 1.5, 
+                    repeat: Infinity, 
+                    delay: i * 0.2 
+                  }}
+                  className="h-1 w-6 rounded-full"
+                />
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -399,52 +441,75 @@ function AnalyzerContent() {
             className="grid grid-cols-1 lg:grid-cols-12 gap-8"
           >
             {/* Sidebar Results */}
-            <div className="lg:col-span-4 space-y-6">
-              <div className="bg-white border border-slate-200 rounded-xl p-6">
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">
-                  Risk Scorecard
-                </h4>
-                <div className="flex items-end gap-2 mb-6">
-                  <span className="text-6xl font-black text-slate-900 tracking-tighter">
+            <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-8 h-fit">
+              <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                    Risk Scorecard
+                  </h4>
+                  <ShieldAlert className={cn(
+                    "w-5 h-5",
+                    result.risk_score > 70 ? "text-rose-500" : result.risk_score > 30 ? "text-amber-500" : "text-emerald-500"
+                  )} />
+                </div>
+
+                <div className="flex items-baseline gap-2 mb-2">
+                  <span className="text-7xl font-black text-slate-900 tracking-tighter">
                     {result.risk_score}
                   </span>
-                  <span className="text-slate-300 font-bold mb-2">/ 100</span>
+                  <span className="text-slate-300 font-bold text-xl">/ 100</span>
                 </div>
 
-                <div className="p-4 bg-slate-50 rounded-lg border border-slate-100 mb-6">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Classification
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">
-                      {result.classification}
-                    </span>
+                {/* Dinamik Risk Barı */}
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-8">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${result.risk_score}%` }}
+                    transition={{ duration: 1, ease: "easeOut" }}
+                    className={cn(
+                      "h-full rounded-full",
+                      result.risk_score > 70 ? "bg-rose-500" : result.risk_score > 30 ? "bg-amber-500" : "bg-emerald-500"
+                    )}
+                  />
+                </div>
+
+                <div className="space-y-6">
+                  <div className="p-5 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Classification
+                      </span>
+                      <span className="px-2 py-0.5 bg-slate-900 text-white text-[9px] font-black rounded uppercase tracking-tighter">
+                        {result.classification}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-600 font-medium leading-relaxed italic">
+                      &ldquo;{result.summary}&rdquo;
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-600 italic leading-relaxed">
-                    &ldquo;{result.summary}&rdquo;
-                  </p>
-                </div>
 
-                <div className="space-y-4">
-                  <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Strengths Identified
-                  </h5>
-                  <div className="space-y-2">
-                    {result.strengths.map((s, i) => (
-                      <div key={i} className="flex gap-2 text-xs font-medium text-slate-500">
-                        <div className="mt-1 flex-shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                        {s}
-                      </div>
-                    ))}
+                  <div className="space-y-4">
+                    <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                      Sözleşme Güçlü Yanları
+                    </h5>
+                    <div className="space-y-3">
+                      {result.strengths.map((s, i) => (
+                        <div key={i} className="flex gap-3 text-xs font-semibold text-slate-600">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                          {s}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
 
               <button
                 onClick={reset}
-                className="w-full py-3 rounded-lg border border-slate-200 text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em] hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                className="w-full py-4 rounded-xl bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-2 group"
               >
-                New Session
+                <Zap className="w-4 h-4 text-amber-400 group-hover:scale-125 transition-transform" />
+                New Analysis Session
               </button>
             </div>
 
@@ -478,8 +543,8 @@ function AnalyzerContent() {
                           risk.level === "Yüksek"
                             ? "bg-rose-100 text-rose-700"
                             : risk.level === "Orta"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-100 text-slate-700"
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-slate-100 text-slate-700"
                         )}
                       >
                         {risk.level}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, ElementType } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -10,6 +10,7 @@ import {
   FileSearch,
   Shield,
   FileText,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +20,7 @@ const StatCard = ({
   value,
   color,
 }: {
-  icon: React.ElementType;
+  icon: ElementType;
   label: string;
   value: string;
   color: string;
@@ -55,44 +56,91 @@ const StatCard = ({
 import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  AreaChart,
+  Area
+} from "recharts";
+
 export default function DashboardOverview() {
   const router = useRouter();
   const [analyses, setAnalyses] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
   const [selectedAnalysis, setSelectedAnalysis] = useState<any | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  const [stats, setStats] = useState({
+    total: 0,
+    activeRisks: 0,
+    compliant: 0,
+    avgRisk: 0
+  });
   const supabase = createClient();
 
   useEffect(() => {
     const fetchAnalyses = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      setIsGuest(!session);
       
+      let allAnalyses = [];
+
       if (session?.user) {
         const { data, error } = await supabase
           .from("contracts")
           .select("*")
-          .order("created_at", { ascending: false })
-          .limit(5);
+          .order("created_at", { ascending: false });
 
         if (data && !error) {
-          const formatted = data.map((d: any) => ({
+          allAnalyses = data;
+          const formatted = data.slice(0, 5).map((d: any) => ({
             name: d.filename,
             type: d.analysis_results?.classification || "Belge",
             status: d.risk_score > 70 ? "High Risk" : d.risk_score > 30 ? "Low Risk" : "Secure",
             date: new Date(d.created_at).toLocaleDateString("tr-TR"),
             score: d.risk_score || 0,
             id: d.id,
+            analysisData: d.analysis_results
           }));
           setAnalyses(formatted);
-          return;
+        }
+      } else {
+        // Guest fallback
+        const historyStr = localStorage.getItem("analysis_history");
+        if (historyStr) {
+          allAnalyses = JSON.parse(historyStr);
+          setAnalyses(allAnalyses.slice(0, 5));
         }
       }
 
-      // Guest fallback
-      const historyStr = localStorage.getItem("analysis_history");
-      if (historyStr) {
-        setAnalyses(JSON.parse(historyStr).slice(0, 5));
-      } else {
-        setAnalyses([]);
-      }
+      // Calculate stats
+      const total = allAnalyses.length;
+      const scores = allAnalyses.map((a: any) => 
+        typeof a.risk_score === 'number' ? a.risk_score : 
+        (typeof a.score === 'number' ? a.score : 0)
+      );
+      
+      const activeRisks = scores.filter(s => s > 70).length;
+      const compliant = scores.filter(s => s < 30).length;
+      const avgRisk = total > 0 
+        ? Math.round(scores.reduce((a, b) => a + b, 0) / total) 
+        : 0;
+
+      setStats({ total, activeRisks, compliant, avgRisk });
+
+      // Prepare Chart Data (last 7 analyses)
+      const chartPoints = [...allAnalyses]
+        .reverse()
+        .slice(-7)
+        .map((a: any) => ({
+          name: new Date(a.created_at || Date.now()).toLocaleDateString("tr-TR", { day: 'numeric', month: 'short' }),
+          risk: typeof a.risk_score === 'number' ? a.risk_score : (typeof a.score === 'number' ? a.score : 0)
+        }));
+      setChartData(chartPoints);
     };
 
     fetchAnalyses();
@@ -104,110 +152,175 @@ export default function DashboardOverview() {
       <div className="space-y-10">
         {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={FileSearch} label="Total Analysis" value="48" color="blue" />
-        <StatCard icon={AlertCircle} label="Active Risks" value="12" color="amber" />
-        <StatCard icon={FileCheck} label="Compliant" value="32" color="emerald" />
-        <StatCard icon={TrendingUp} label="Risk Avg." value="18%" color="slate" />
+        <StatCard icon={FileSearch} label="Total Analysis" value={stats.total.toString()} color="slate" />
+        <StatCard icon={AlertCircle} label="Active Risks" value={stats.activeRisks.toString()} color="amber" />
+        <StatCard icon={FileCheck} label="Compliant" value={stats.compliant.toString()} color="emerald" />
+        <StatCard icon={TrendingUp} label="Risk Avg." value={`${stats.avgRisk}%`} color="slate" />
       </div>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Recent Investigations Table */}
-        <div className="lg:col-span-8 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
-          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-xl">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-              Recent Investigations
-            </span>
-            <Link
-              href="/dashboard/contracts"
-              className="text-[10px] font-bold text-blue-600 hover:underline uppercase tracking-widest"
-            >
-              View All
-            </Link>
-          </div>
-          <div className="divide-y divide-slate-100">
-            {analyses.map((item: any, i: number) => {
-              const score =
-                typeof item.score === "number"
-                  ? item.score
-                  : typeof item.risk === "string"
-                  ? parseInt(item.risk)
-                  : 0;
-              const status =
-                item.status ||
-                (score > 70 ? "High Risk" : score > 30 ? "Low Risk" : "Secure");
-              const date = item.date || "";
-              const type = item.type || "";
+        {/* Left Section: Table + Chart */}
+        <div className="lg:col-span-8 flex flex-col gap-8">
+          {/* Recent Investigations Table */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                Recent Investigations
+              </span>
+              <Link
+                href="/dashboard/contracts"
+                className="text-[10px] font-bold text-slate-900 hover:underline uppercase tracking-widest"
+              >
+                View All
+              </Link>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {analyses.length > 0 ? analyses.map((item: any, i: number) => {
+                const score = item.score || 0;
+                const status = item.status || "Secure";
+                const date = item.date || "";
+                const type = item.type || "";
 
-                  return (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: i * 0.1 }}
-                      key={i}
-                      onClick={() => setSelectedAnalysis(item)}
-                      className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer group"
-                    >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100 group-hover:bg-white group-hover:border-slate-200">
-                      <FileText className="w-5 h-5 text-slate-400 group-hover:text-slate-600" />
-                    </div>
-                    <div>
-                      <h5 className="text-sm font-semibold text-slate-900">
-                        {item.name}
-                      </h5>
-                      <p className="text-[11px] text-slate-400 font-medium uppercase tracking-tight">
-                        {type} • {date}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-8">
-                    <div className="hidden sm:block text-right">
-                      <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest leading-none mb-1">
-                        Score
+                    return (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: i * 0.1 }}
+                        key={i}
+                        onClick={() => setSelectedAnalysis(item)}
+                        className="flex items-center justify-between p-4 hover:bg-slate-50 transition-colors cursor-pointer group"
+                      >
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100 group-hover:bg-white group-hover:border-slate-200">
+                        <FileText className="w-5 h-5 text-slate-400 group-hover:text-slate-600" />
                       </div>
-                      <div
+                      <div>
+                        <h5 className="text-sm font-semibold text-slate-900">
+                          {item.name}
+                        </h5>
+                        <p className="text-[11px] text-slate-400 font-medium uppercase tracking-tight">
+                          {type} • {date}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-8">
+                      <div className="hidden sm:block text-right">
+                        <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest leading-none mb-1">
+                          Score
+                        </div>
+                        <div
+                          className={cn(
+                            "text-xs font-black",
+                            score > 70 ? "text-rose-500" : score > 30 ? "text-amber-500" : "text-emerald-500"
+                          )}
+                        >
+                          {score}
+                        </div>
+                      </div>
+                      <span
                         className={cn(
-                          "text-xs font-black",
+                          "px-2 py-0.5 rounded text-[10px] font-bold border min-w-[75px] text-center",
                           score > 70
-                            ? "text-rose-500"
+                            ? "bg-rose-50 text-rose-600 border-rose-100"
                             : score > 30
-                            ? "text-amber-500"
-                            : "text-emerald-500"
+                            ? "bg-amber-50 text-amber-600 border-amber-100"
+                            : "bg-slate-50 text-slate-600 border-slate-200"
                         )}
                       >
-                        {score}
-                      </div>
+                        {status.toUpperCase()}
+                      </span>
                     </div>
-                    <span
-                      className={cn(
-                        "px-2 py-0.5 rounded text-[10px] font-bold border",
-                        score > 70
-                          ? "bg-rose-50 text-rose-600 border-rose-100"
-                          : score > 30
-                          ? "bg-amber-50 text-amber-600 border-amber-100"
-                          : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                      )}
-                    >
-                      {status.toUpperCase()}
-                    </span>
-                  </div>
-                </motion.div>
-              );
-            })}
+                  </motion.div>
+                );
+              }) : (
+                <div className="p-12 text-center text-slate-400 text-sm italic">
+                  Henüz bir analiz bulunmuyor. Yeni bir analiz yaparak başlayın!
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Risk Trend Chart */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col h-[350px]">
+            <div className="flex items-center justify-between mb-8">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                Risk Evolution Trend
+              </span>
+              <div className="flex items-center gap-2">
+                 <div className="w-2 h-2 rounded-full bg-slate-900" />
+                 <span className="text-[10px] font-bold text-slate-600 uppercase">Analysis Score</span>
+              </div>
+            </div>
+            <div className="flex-1 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorRisk" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#0f172a" stopOpacity={0.05}/>
+                      <stop offset="95%" stopColor="#0f172a" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fontSize: 10, fontWeight: 600, fill: '#94a3b8'}}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{fontSize: 10, fontWeight: 600, fill: '#94a3b8'}}
+                    domain={[0, 100]}
+                  />
+                  <Tooltip 
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', fontSize: '12px'}}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="risk" 
+                    stroke="#0f172a" 
+                    strokeWidth={2}
+                    fillOpacity={1} 
+                    fill="url(#colorRisk)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
 
         {/* Right Sidebar Cards */}
         <div className="lg:col-span-4 flex flex-col gap-6">
+          {isGuest && (
+            <div className="bg-slate-900 rounded-xl p-6 text-white shadow-xl shadow-slate-200 relative overflow-hidden group">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-white/10 transition-colors" />
+               <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center mb-4 relative z-10">
+                  <Lock className="w-5 h-5 text-white" />
+               </div>
+               <h3 className="text-sm font-bold uppercase tracking-widest mb-2 relative z-10">Guest Access</h3>
+               <p className="text-xs text-slate-400 leading-relaxed mb-6 relative z-10">
+                 Analiz geçmişinizi kaydetmek ve akıllı kütüphane özelliklerine erişmek için hemen ücretsiz kayıt olun.
+               </p>
+               <Link 
+                href="/auth/register"
+                className="block w-full py-3.5 bg-white text-slate-950 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl text-center hover:bg-slate-100 transition-all relative z-10"
+               >
+                 Register Now
+               </Link>
+            </div>
+          )}
+          
           {/* Risk Scorecard */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 overflow-hidden relative">
             <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">
-              Risk Scorecard
+              Intelligence Summary
             </h4>
             <div className="flex items-end gap-2 mb-6">
               <span className="text-5xl font-black text-slate-900 tracking-tighter">
-                74
+                {stats.avgRisk}
               </span>
               <span className="text-slate-300 font-bold mb-1">/ 100</span>
             </div>
@@ -215,23 +328,31 @@ export default function DashboardOverview() {
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] font-bold">
                   <span className="text-slate-400 uppercase tracking-wider">
-                    Critical Risks
+                    High Risk Contracts
                   </span>
-                  <span className="text-rose-600">3 Topics</span>
+                  <span className="text-rose-600">{stats.activeRisks} Files</span>
                 </div>
                 <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-rose-500 w-[70%] rounded-full" />
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(stats.activeRisks / (stats.total || 1)) * 100}%` }}
+                    className="h-full bg-rose-500 rounded-full" 
+                  />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <div className="flex justify-between text-[11px] font-bold">
                   <span className="text-slate-400 uppercase tracking-wider">
-                    Compliance
+                    Secure Compliance
                   </span>
-                  <span className="text-slate-900">82% Overall</span>
+                  <span className="text-slate-900">{stats.compliant} Documents</span>
                 </div>
                 <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-500 w-[82%] rounded-full" />
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${(stats.compliant / (stats.total || 1)) * 100}%` }}
+                    className="h-full bg-emerald-500 rounded-full" 
+                  />
                 </div>
               </div>
             </div>
@@ -254,7 +375,6 @@ export default function DashboardOverview() {
               Download Full Intelligence
             </Link>
           </div>
-        </div>
       </div>
     </div>
 
@@ -319,5 +439,6 @@ export default function DashboardOverview() {
         </div>
       )}
     </div>
+  </div>
   );
 }
