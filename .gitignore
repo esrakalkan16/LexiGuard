@@ -11,10 +11,20 @@ __pycache__/
 venv/
 .venv/
 env/
+# Environment Files
 .env
+.env.local
+.env.*
+**/.env
+**/.env.local
+**/.env.*
 
 # Build directories
 dist/
 build/
-.next/packages/nlp/lexiguard_model/model.safetensors
+.next/
+.turbo/
+out/
+
+# Large Model Files
 packages/nlp/lexiguard_model/model.safetensors

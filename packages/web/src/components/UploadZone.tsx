@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { createClient } from "@/utils/supabase/client";
 
 export default function UploadZone() {
   const [isDragging, setIsDragging] = useState(false);
@@ -56,13 +57,21 @@ export default function UploadZone() {
 
     setIsUploading(true);
 
-    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const formData = new FormData();
       formData.append("file", file);
       
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch("http://localhost:3000/api/analyze", {
         method: "POST",
         body: formData,
+        headers: headers
       });
 
       if (!response.ok) {

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/utils/supabase/client";
 import {
   BarChart3,
   FileText,
@@ -53,6 +54,14 @@ const SidebarItem = ({ icon: Icon, label, active, href, onClick }: SidebarItemPr
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/auth/login");
+    router.refresh();
+  };
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
@@ -126,7 +135,7 @@ export default function Sidebar() {
           <SidebarItem
             icon={LogOut}
             label="Sign Out"
-            onClick={() => {}}
+            onClick={handleSignOut}
           />
         </div>
       </div>

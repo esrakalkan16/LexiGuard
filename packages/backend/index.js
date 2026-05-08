@@ -4,6 +4,7 @@ const cors = require('cors');
 const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
+const supabase = require('./lib/supabase');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -87,11 +88,42 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
         }
 
         const data = await nlpResponse.json();
+        const filename = req.file ? req.file.originalname : 'Metin Analizi';
         
-        // Return to frontend with original filename
+        // ─── Supabase'e Kaydetme (Giriş yapılmışsa) ─────────────────────
+        let savedData = null;
+        const authHeader = req.headers.authorization;
+        
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split(' ')[1];
+            const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+            
+            if (!authError && user) {
+                const { data: contract, error: dbError } = await supabase
+                    .from('contracts')
+                    .insert({
+                        user_id: user.id,
+                        filename: filename,
+                        content_text: text.substring(0, 5000), // Sadece ilk 5000 karakteri saklayalım
+                        analysis_results: data,
+                        risk_score: data.overall_risk_score || 0
+                    })
+                    .select()
+                    .single();
+                
+                if (dbError) {
+                    console.error('DB Kayıt Hatası:', dbError.message);
+                } else {
+                    savedData = contract;
+                }
+            }
+        }
+
+        // Return to frontend with original filename and DB record if exists
         res.json({
             ...data,
-            filename: req.file ? req.file.originalname : 'Metin Analizi'
+            filename: filename,
+            db_record: savedData
         });
 
     } catch (err) {
