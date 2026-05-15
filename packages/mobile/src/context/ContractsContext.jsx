@@ -13,6 +13,30 @@ export const ContractsProvider = ({ children }) => {
   const lastFetchRef = useRef(0);
   const fetchingRef = useRef(false);
 
+  // Oturum değişikliklerini dinle ve verileri temizle
+  React.useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        // Kullanıcı çıkış yaptıysa her şeyi temizle
+        setContracts([]);
+        setUser(null);
+        lastFetchRef.current = 0;
+      } else if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        // Yeni kullanıcı girdiyse eski verileri temizle ve yenisini çek
+        if (session?.user && session.user.id !== user?.id) {
+          setContracts([]);
+          setUser(session.user);
+          lastFetchRef.current = 0;
+          fetchContracts(true);
+        }
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user?.id, fetchContracts]);
+
   const fetchContracts = useCallback(async (force = false) => {
     // Eğer zaten fetch yapılıyorsa tekrar başlatma
     if (fetchingRef.current) return;
@@ -23,23 +47,22 @@ export const ContractsProvider = ({ children }) => {
       return;
     }
 
-    fetchingRef.current = true;
-    // Sadece ilk yüklemede loading göster, refresh'lerde gösterme
-    if (contracts.length === 0) {
+    // Sadece ilk yüklemede veya force ise loading'i aktif et (UX için)
+    if (contracts.length === 0 || force) {
       setLoading(true);
     }
-
+    
+    fetchingRef.current = true;
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session?.user) {
         setUser(session.user);
         
-        // analysis_results'ı sadece sonuç ekranında lazım olduğunda çekelim
-        // Liste ekranlarında SADECE hafif veri çekiyoruz
         const { data, error } = await supabase
           .from('contracts')
-          .select('id, filename, risk_score, created_at, analysis_results')
+          .select('id, filename, risk_score, created_at, analysis_results, content_text')
           .eq('user_id', session.user.id)
           .order('created_at', { ascending: false });
           
@@ -47,6 +70,9 @@ export const ContractsProvider = ({ children }) => {
           setContracts(data);
           lastFetchRef.current = Date.now();
         }
+      } else {
+        setContracts([]);
+        setUser(null);
       }
     } catch (error) {
       console.log("Veri çekilirken hata:", error);
@@ -54,7 +80,7 @@ export const ContractsProvider = ({ children }) => {
       setLoading(false);
       fetchingRef.current = false;
     }
-  }, [contracts.length]);
+  }, [user?.id, contracts.length]);
 
   // Yeni analiz ekledikten sonra listeye anında ekleme (DB'den tekrar çekmeden)
   const addContract = useCallback((newContract) => {

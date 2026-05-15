@@ -27,9 +27,12 @@ import {
 import { theme } from '../theme/theme';
 import { supabase } from '../api/supabase';
 
-// SettingsRow bileşeni: her render'da yeniden oluşturulmaması için bileşen dışında tanımlandı
-const SettingsRow = React.memo(({ icon: Icon, title, value, showArrow = true, color = theme.colors.text.secondary, onPress }) => (
-  <TouchableOpacity style={styles.settingsRow} onPress={onPress}>
+const SettingsRow = ({ icon: Icon, title, value, showArrow = true, color = theme.colors.text.secondary, onPress }) => (
+  <TouchableOpacity 
+    style={styles.settingsRow} 
+    onPress={onPress}
+    activeOpacity={0.6}
+  >
     <View style={styles.settingsRowLeft}>
       <View style={styles.settingsIconBg}>
         <Icon color={color} size={20} />
@@ -41,7 +44,7 @@ const SettingsRow = React.memo(({ icon: Icon, title, value, showArrow = true, co
       {showArrow && <ChevronRight color={theme.colors.border} size={20} />}
     </View>
   </TouchableOpacity>
-));
+);
 
 const ProfileScreen = ({ navigation }) => {
   const [user, setUser] = useState(null);
@@ -320,7 +323,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
+    paddingTop: 56, // Daha ferah bir üst boşluk
     paddingBottom: theme.spacing.md,
   },
   headerTitle: {

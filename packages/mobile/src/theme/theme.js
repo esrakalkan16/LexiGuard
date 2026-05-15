@@ -1,13 +1,13 @@
 export const theme = {
   colors: {
-    primary: '#2563EB', // Blue
-    background: '#F4F6F8', // Page bg
-    surface: '#FFFFFF', // Card bg
-    border: '#E5E7EB', // Subtle 0.5px border
+    primary: '#0f172a', // Slate-900 (Login ile aynı)
+    background: '#ffffff', // Bembeyaz (Login ile aynı)
+    surface: '#ffffff',
+    border: '#e2e8f0', // Slate-200
     text: {
-      primary: '#111827', // Dark gray for high readability
-      secondary: '#6B7280', // Lighter gray for subtitles/meta
-      inverse: '#FFFFFF',
+      primary: '#0f172a',
+      secondary: '#64748b', // Slate-500
+      inverse: '#ffffff',
     },
     risk: {
       high: '#EF4444', // Red

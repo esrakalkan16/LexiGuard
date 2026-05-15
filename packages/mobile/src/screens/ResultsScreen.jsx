@@ -6,14 +6,19 @@ import {
   TouchableOpacity, 
   SafeAreaView,
   ScrollView,
-  Alert
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform
 } from 'react-native';
 import { 
   ArrowLeft, 
   Download, 
   AlertTriangle,
   Info,
-  CheckCircle
+  CheckCircle,
+  FileText,
+  ExternalLink
 } from 'lucide-react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { theme } from '../theme/theme';
@@ -61,6 +66,7 @@ const CircularProgress = ({ score, color }) => {
 const ResultsScreen = ({ route, navigation }) => {
   const { contracts } = useContracts();
   const [filter, setFilter] = React.useState('ALL'); // ALL, high, medium, low
+  const [activeTab, setActiveTab] = React.useState(route.params?.initialTab || 'analysis'); // analysis, document
   
   // Eğer contractId geldiyse Context'ten bul, yoksa (misafir yüklemesi) doğrudan contractData'yı kullan
   const contractId = route.params?.contractId;
@@ -108,6 +114,29 @@ const ResultsScreen = ({ route, navigation }) => {
     });
   }, [items, filter]);
 
+  // EKSİK VERİLERİ TAMAMLA: Eğer content_text yoksa (eski cache'den dolayı), DB'den çek
+  const [fullContent, setFullContent] = React.useState(contract.content_text || null);
+  const [contentLoading, setContentLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    const fetchFullText = async () => {
+      if (contractId && !fullContent && !contentLoading) {
+        setContentLoading(true);
+        const { data, error } = await supabase
+          .from('contracts')
+          .select('content_text')
+          .eq('id', contractId)
+          .single();
+        
+        if (data?.content_text) {
+          setFullContent(data.content_text);
+        }
+        setContentLoading(false);
+      }
+    };
+    fetchFullText();
+  }, [contractId, fullContent]);
+
   // Gösterilecek risk maddeleri (boşsa fallback göster)
   const displayItems = useMemo(() => filteredItems.length > 0 ? filteredItems : (filter === 'ALL' ? [
     { 
@@ -151,91 +180,130 @@ const ResultsScreen = ({ route, navigation }) => {
       </View>
 
       <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
-        
-        {/* Main Score Card */}
-        <View style={styles.scoreCard}>
-          <View style={styles.scoreRow}>
-            <CircularProgress score={score} color={riskColor} />
-            <View style={styles.scoreDetails}>
-              <Text style={styles.scoreLabel}>Risk Skoru</Text>
-              <View style={[styles.badge, { backgroundColor: riskColor + '15' }]}>
-                <Text style={[styles.badgeText, { color: riskColor }]}>{riskLevel}</Text>
-              </View>
-              {wordCount > 0 && (
-                <Text style={styles.metaText}>
-                  {wordCount} Kelime taranmıştır
-                </Text>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {/* Mini Stats Bar */}
-        <View style={styles.statsBar}>
+        {/* Tab Switcher */}
+        <View style={styles.tabContainer}>
           <TouchableOpacity 
-            style={[styles.statItem, filter === 'high' && styles.statItemActive]}
-            onPress={() => toggleFilter('high')}
+            style={[styles.tabButton, activeTab === 'analysis' && styles.tabActive]} 
+            onPress={() => setActiveTab('analysis')}
           >
-            <Text style={[styles.statNumber, { color: theme.colors.risk.high }]}>{highCount}</Text>
-            <Text style={styles.statName}>Yüksek</Text>
+            <Text style={[styles.tabText, activeTab === 'analysis' && styles.tabTextActive]}>Analiz</Text>
           </TouchableOpacity>
-          <View style={styles.divider} />
           <TouchableOpacity 
-            style={[styles.statItem, filter === 'medium' && styles.statItemActive]}
-            onPress={() => toggleFilter('medium')}
+            style={[styles.tabButton, activeTab === 'document' && styles.tabActive]} 
+            onPress={() => setActiveTab('document')}
           >
-            <Text style={[styles.statNumber, { color: theme.colors.risk.medium }]}>{mediumCount}</Text>
-            <Text style={styles.statName}>Orta</Text>
-          </TouchableOpacity>
-          <View style={styles.divider} />
-          <TouchableOpacity 
-            style={[styles.statItem, filter === 'low' && styles.statItemActive]}
-            onPress={() => toggleFilter('low')}
-          >
-            <Text style={[styles.statNumber, { color: theme.colors.risk.low }]}>{lowCount}</Text>
-            <Text style={styles.statName}>Düşük</Text>
+            <Text style={[styles.tabText, activeTab === 'document' && styles.tabTextActive]}>Belge</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Risk Items Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {filter === 'ALL' ? 'Tespit Edilen Riskler' : `${filter === 'high' ? 'Yüksek' : filter === 'medium' ? 'Orta' : 'Düşük'} Riskli Maddeler`}
-          </Text>
-          {filter !== 'ALL' && (
-            <TouchableOpacity onPress={() => setFilter('ALL')}>
-              <Text style={styles.clearFilterText}>Hepsini Gör</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {displayItems.length > 0 ? displayItems.map((item, index) => {
-          // NLP servisinden gelen risk_level değerini esas alıyoruz
-          const level = item.risk_level?.toLowerCase();
-          const isHigh = level === 'high';
-          const isMedium = level === 'medium';
-          
-          const itemColor = isHigh ? theme.colors.risk.high : isMedium ? theme.colors.risk.medium : theme.colors.risk.low;
-          const itemLabel = isHigh ? 'YÜKSEK' : isMedium ? 'ORTA' : 'DÜŞÜK';
-          const Icon = isHigh ? AlertTriangle : isMedium ? Info : CheckCircle;
-
-          return (
-            <View key={index} style={[styles.riskCard, { borderLeftColor: itemColor }]}>
-              <View style={styles.riskHeader}>
-                <Text style={styles.riskCategory}>{item.category || 'Belge İncelemesi'}</Text>
-                <View style={[styles.miniBadge, { backgroundColor: itemColor + '15' }]}>
-                  <Icon color={itemColor} size={10} />
-                  <Text style={[styles.miniBadgeText, { color: itemColor }]}>{itemLabel}</Text>
+        {activeTab === 'analysis' ? (
+          <>
+            {/* Main Score Card */}
+            <View style={styles.scoreCard}>
+              <View style={styles.scoreRow}>
+                <CircularProgress score={score} color={riskColor} />
+                <View style={styles.scoreDetails}>
+                  <Text style={styles.scoreLabel}>Risk Skoru</Text>
+                  <View style={[styles.badge, { backgroundColor: riskColor + '15' }]}>
+                    <Text style={[styles.badgeText, { color: riskColor }]}>{riskLevel}</Text>
+                  </View>
+                  {wordCount > 0 && (
+                    <Text style={styles.metaText}>
+                      {wordCount} Kelime taranmıştır
+                    </Text>
+                  )}
                 </View>
               </View>
-              <Text style={styles.riskDescription}>
-                {item.description || item.summary || item.text || 'Bu maddede potansiyel bir yasal durum tespit edilmiştir.'}
-              </Text>
             </View>
-          )
-        }) : (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>Bu kategoride madde bulunamadı.</Text>
+
+            {/* Mini Stats Bar */}
+            <View style={styles.statsBar}>
+              <TouchableOpacity 
+                style={[styles.statItem, filter === 'high' && styles.statItemActive]}
+                onPress={() => toggleFilter('high')}
+              >
+                <Text style={[styles.statNumber, { color: theme.colors.risk.high }]}>{highCount}</Text>
+                <Text style={styles.statName}>Yüksek</Text>
+              </TouchableOpacity>
+              <View style={styles.divider} />
+              <TouchableOpacity 
+                style={[styles.statItem, filter === 'medium' && styles.statItemActive]}
+                onPress={() => toggleFilter('medium')}
+              >
+                <Text style={[styles.statNumber, { color: theme.colors.risk.medium }]}>{mediumCount}</Text>
+                <Text style={styles.statName}>Orta</Text>
+              </TouchableOpacity>
+              <View style={styles.divider} />
+              <TouchableOpacity 
+                style={[styles.statItem, filter === 'low' && styles.statItemActive]}
+                onPress={() => toggleFilter('low')}
+              >
+                <Text style={[styles.statNumber, { color: theme.colors.risk.low }]}>{lowCount}</Text>
+                <Text style={styles.statName}>Düşük</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Risk Items Section */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {filter === 'ALL' ? 'Tespit Edilen Riskler' : `${filter === 'high' ? 'Yüksek' : filter === 'medium' ? 'Orta' : 'Düşük'} Riskli Maddeler`}
+              </Text>
+              {filter !== 'ALL' && (
+                <TouchableOpacity onPress={() => setFilter('ALL')}>
+                  <Text style={styles.clearFilterText}>Hepsini Gör</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {displayItems.length > 0 ? displayItems.map((item, index) => {
+              const level = item.risk_level?.toLowerCase();
+              const isHigh = level === 'high';
+              const isMedium = level === 'medium';
+              
+              const itemColor = isHigh ? theme.colors.risk.high : isMedium ? theme.colors.risk.medium : theme.colors.risk.low;
+              const itemLabel = isHigh ? 'YÜKSEK' : isMedium ? 'ORTA' : 'DÜŞÜK';
+              const Icon = isHigh ? AlertTriangle : isMedium ? Info : CheckCircle;
+
+              return (
+                <View key={index} style={[styles.riskCard, { borderLeftColor: itemColor }]}>
+                  <View style={styles.riskHeader}>
+                    <Text style={styles.riskCategory}>{item.category || 'Belge İncelemesi'}</Text>
+                    <View style={[styles.miniBadge, { backgroundColor: itemColor + '15' }]}>
+                      <Icon color={itemColor} size={10} />
+                      <Text style={[styles.miniBadgeText, { color: itemColor }]}>{itemLabel}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.riskDescription}>
+                    {item.description || item.summary || item.text || 'Bu maddede potansiyel bir yasal durum tespit edilmiştir.'}
+                  </Text>
+                </View>
+              )
+            }) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>Bu kategoride madde bulunamadı.</Text>
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={styles.documentCard}>
+            <View style={styles.documentHeader}>
+              <FileText color={theme.colors.primary} size={20} />
+              <Text style={styles.documentHeaderTitle}>{fileName}</Text>
+            </View>
+            <View style={styles.documentDivider} />
+            {contentLoading ? (
+              <View style={styles.documentLoading}>
+                <ActivityIndicator color={theme.colors.primary} />
+                <Text style={styles.loadingText}>Belge metni hazırlanıyor...</Text>
+              </View>
+            ) : (
+              <Text style={styles.documentText}>
+                {fullContent || "Belge metni yüklenemedi."}
+              </Text>
+            )}
+            <View style={styles.documentFooter}>
+              <Text style={styles.footerInfo}>LexiGuard AI tarafından güvenle tarandı</Text>
+            </View>
           </View>
         )}
 
@@ -458,6 +526,105 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.text.secondary,
     lineHeight: 18,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.border + '30',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: theme.spacing.xl,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabActive: {
+    backgroundColor: theme.colors.surface,
+    ...theme.shadows.card,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text.secondary,
+  },
+  tabTextActive: {
+    color: theme.colors.primary,
+  },
+  documentCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.lg,
+    minHeight: 400,
+    borderWidth: 0.5,
+    borderColor: theme.colors.border,
+    ...theme.shadows.card,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  documentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  documentHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+    flex: 1,
+  },
+  documentDivider: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginHorizontal: -theme.spacing.lg,
+    marginBottom: 16,
+  },
+  documentLoading: {
+    padding: 60,
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
+  },
+  documentText: {
+    fontSize: 14,
+    color: theme.colors.text.primary,
+    lineHeight: 24,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: -0.2,
+  },
+  documentFooter: {
+    marginTop: 24,
+    paddingTop: 16,
+    borderTopWidth: 0.5,
+    borderTopColor: theme.colors.border,
+    alignItems: 'center',
+  },
+  footerInfo: {
+    fontSize: 11,
+    color: theme.colors.text.secondary,
+    fontStyle: 'italic',
+  },
+  openFileButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.primary,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    ...theme.shadows.card,
+  },
+  openFileButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   }
 });
 

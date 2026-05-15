@@ -12,15 +12,22 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { 
   UploadCloud, 
-  FileText
+  FileText,
+  TrendingUp,
+  Plus,
+  Zap,
+  ShieldCheck,
+  Search,
+  Camera,
+  ClipboardType
 } from 'lucide-react-native';
+import Svg, { Path, Defs, LinearGradient, Stop, Circle, Rect } from 'react-native-svg';
 import { theme } from '../theme/theme';
 import { useContracts } from '../context/ContractsContext';
 
 const DashboardScreen = ({ navigation }) => {
   const { contracts, loading, user, fetchContracts } = useContracts();
 
-  // Ekrana her odaklandığında verileri yenile (arka planda, UI'ı dondurmadan)
   useFocusEffect(
     useCallback(() => {
       fetchContracts();
@@ -30,70 +37,112 @@ const DashboardScreen = ({ navigation }) => {
   const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Kullanıcı";
   const userInitials = userName.substring(0, 2).toUpperCase();
 
-  // useMemo: contracts değişmediği sürece tekrar hesaplanmaz
   const avgScore = useMemo(() => {
     if (contracts.length === 0) return 0;
     return Math.round(contracts.reduce((acc, curr) => acc + (curr.risk_score || 0), 0) / contracts.length);
   }, [contracts]);
 
-  const recentContracts = useMemo(() => contracts.slice(0, 5), [contracts]);
+  const recentContracts = useMemo(() => contracts.slice(0, 3), [contracts]);
+
+  // Grafik verisi hazırlama (Son 7 analiz)
+  const chartData = useMemo(() => {
+    const baseData = contracts.slice(0, 7).reverse().map(c => c.risk_score || 0);
+    // Eğer az veri varsa dummy veri ile doldur (grafik boş gözükmesin)
+    while (baseData.length < 7) {
+      baseData.unshift(Math.floor(Math.random() * 40) + 20);
+    }
+    return baseData;
+  }, [contracts]);
+
+  // SVG Grafiği çizim fonksiyonu
+  const renderChart = () => {
+    const width = 300;
+    const height = 80;
+    const barWidth = 24;
+    const gap = (width - (barWidth * chartData.length)) / (chartData.length - 1);
+
+    return (
+      <View style={styles.chartWrapper}>
+        <View style={styles.chartHeader}>
+          <TrendingUp color={theme.colors.primary} size={16} />
+          <Text style={styles.chartTitle}>Risk Trend Analizi</Text>
+        </View>
+        <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+          {chartData.map((val, i) => {
+            const barHeight = (val / 100) * height;
+            return (
+              <Rect
+                key={i}
+                x={i * (barWidth + gap)}
+                y={height - barHeight}
+                width={barWidth}
+                height={barHeight}
+                rx={6}
+                fill={i === chartData.length - 1 ? theme.colors.primary : '#e2e8f0'}
+              />
+            );
+          })}
+        </Svg>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Merhaba, {userName} 👋</Text>
-          <Text style={styles.headerSub}>Sözleşmeleriniz güvende.</Text>
+        <View style={styles.headerInfo}>
+          <View style={styles.avatarLarge}>
+            <Text style={styles.avatarTextLarge}>{userInitials}</Text>
+          </View>
+          <View>
+            <Text style={styles.greeting}>Hoş Geldin,</Text>
+            <Text style={styles.userNameText}>{userName} ✨</Text>
+          </View>
         </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity 
-            style={styles.avatar}
-            onPress={() => navigation.navigate('Profil')}
-          >
-            <Text style={styles.avatarText}>{userInitials}</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity 
+          style={styles.searchButton}
+          onPress={() => navigation.navigate('Analizler')}
+        >
+          <Search color={theme.colors.text.secondary} size={20} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* Grafik Bölümü */}
+        {renderChart()}
+
         <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Toplam Analiz</Text>
-            {loading ? (
-              <ActivityIndicator size="small" color={theme.colors.primary} style={{ alignSelf: 'flex-start', marginTop: 4 }} />
-            ) : (
-              <Text style={styles.statValue}>{contracts.length}</Text>
-            )}
+          <View style={[styles.statCard, { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary }]}>
+            <Zap color="#fff" size={20} style={{ marginBottom: 12 }} />
+            <Text style={[styles.statLabel, { color: 'rgba(255,255,255,0.6)' }]}>Toplam Analiz</Text>
+            <Text style={[styles.statValue, { color: '#fff' }]}>{contracts.length}</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Ort. Risk</Text>
-            {loading ? (
-              <ActivityIndicator size="small" color={theme.colors.primary} style={{ alignSelf: 'flex-start', marginTop: 4 }} />
-            ) : (
-              <Text style={[
-                styles.statValue, 
-                { color: avgScore > 70 ? theme.colors.risk.high : avgScore > 30 ? theme.colors.risk.medium : theme.colors.risk.low }
-              ]}>
-                {avgScore}
-                <Text style={styles.statValueSuffix}>/100</Text>
-              </Text>
-            )}
+            <ShieldCheck color={avgScore > 60 ? theme.colors.risk.high : theme.colors.text.secondary} size={20} style={{ marginBottom: 12 }} />
+            <Text style={styles.statLabel}>Genel Risk</Text>
+            <Text style={[
+              styles.statValue, 
+              { color: avgScore > 70 ? theme.colors.risk.high : avgScore > 35 ? theme.colors.risk.medium : theme.colors.risk.low }
+            ]}>%{avgScore}</Text>
           </View>
         </View>
 
-        <TouchableOpacity 
-          style={styles.ctaCard} 
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate('Upload')}
-        >
-          <View style={styles.ctaIconContainer}>
-            <UploadCloud color={theme.colors.primary} size={28} />
-          </View>
-          <View style={styles.ctaTextContainer}>
-            <Text style={styles.ctaTitle}>Yeni Analiz Başlat</Text>
-            <Text style={styles.ctaSubtitle}>PDF, DOCX veya TXT yükle</Text>
-          </View>
-        </TouchableOpacity>
+        <Text style={styles.sectionTitle}>Hızlı Aksiyonlar</Text>
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={styles.actionItem} onPress={() => navigation.navigate('Upload')}>
+            <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
+              <UploadCloud color="#4F46E5" size={24} />
+            </View>
+            <Text style={styles.actionText}>Dosya Yükle</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionItem} onPress={() => navigation.navigate('Upload')}>
+            <View style={[styles.actionIcon, { backgroundColor: '#FFF7ED' }]}>
+              <ClipboardType color="#EA580C" size={24} />
+            </View>
+            <Text style={styles.actionText}>Yapıştır</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Son Analizler</Text>
@@ -110,36 +159,23 @@ const DashboardScreen = ({ navigation }) => {
           </View>
         ) : (
           recentContracts.map((contract) => {
-            const riskLevel = contract.risk_score >= 70 ? 'Yüksek Risk' : contract.risk_score >= 35 ? 'Orta Risk' : 'Düşük Risk';
             const riskColor = contract.risk_score >= 70 ? theme.colors.risk.high : contract.risk_score >= 35 ? theme.colors.risk.medium : theme.colors.risk.low;
-            const formattedDate = contract.created_at ? new Date(contract.created_at).toLocaleDateString('tr-TR') : 'Bilinmeyen Tarih';
-
             return (
               <TouchableOpacity 
                 key={contract.id} 
                 style={styles.analysisCard}
-                activeOpacity={0.7}
                 onPress={() => navigation.navigate('Results', { contractId: contract.id })}
               >
-                <View style={styles.analysisHeader}>
-                  <View style={styles.analysisTitleRow}>
-                    <FileText color={theme.colors.text.secondary} size={18} />
-                    <Text style={styles.analysisName} numberOfLines={1}>{contract.filename || contract.title || 'İsimsiz Sözleşme'}</Text>
+                <View style={styles.analysisMain}>
+                  <View style={[styles.fileIcon, { backgroundColor: riskColor + '10' }]}>
+                    <FileText color={riskColor} size={20} />
                   </View>
-                  <View style={[styles.badge, { backgroundColor: riskColor + '15' }]}>
-                    <Text style={[styles.badgeText, { color: riskColor }]}>{riskLevel}</Text>
+                  <View style={styles.analysisInfo}>
+                    <Text style={styles.analysisName} numberOfLines={1}>{contract.filename || 'İsimsiz Belge'}</Text>
+                    <Text style={styles.analysisDate}>{new Date(contract.created_at).toLocaleDateString('tr-TR')}</Text>
                   </View>
-                </View>
-                
-                <View style={styles.progressContainer}>
-                  <View style={[styles.progressBar, { width: `${contract.risk_score || 0}%`, backgroundColor: riskColor }]} />
-                  <View style={styles.progressBg} />
-                </View>
-
-                <View style={styles.analysisFooter}>
-                  <Text style={styles.analysisMeta}>{formattedDate}</Text>
-                  <View style={styles.tag}>
-                    <Text style={styles.tagText}>{contract.filename ? contract.filename.split('.').pop().toUpperCase() : 'BELGE'}</Text>
+                  <View style={styles.scoreBadge}>
+                    <Text style={[styles.scoreText, { color: riskColor }]}>%{contract.risk_score}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -165,128 +201,132 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.xl,
-    paddingVertical: theme.spacing.lg,
+    paddingTop: 56, // Daha ferah bir üst boşluk (Çentik/kamera kurtarma)
+    paddingBottom: 24,
     backgroundColor: theme.colors.background,
   },
+  headerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarLarge: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...theme.shadows.card,
+  },
+  avatarTextLarge: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
   greeting: {
-    fontSize: 24,
+    fontSize: 14,
+    color: theme.colors.text.secondary,
+    fontWeight: '500',
+  },
+  userNameText: {
+    fontSize: 18,
     fontWeight: '800',
     color: theme.colors.text.primary,
     letterSpacing: -0.5,
   },
-  headerSub: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
-    marginTop: 2,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borderRadius.full,
+  searchButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: theme.colors.border,
-  },
-  notificationDot: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: theme.colors.risk.high,
-    borderWidth: 1.5,
-    borderColor: theme.colors.surface,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatarText: {
-    color: theme.colors.surface,
-    fontSize: 14,
-    fontWeight: '700',
   },
   scrollContent: {
     paddingHorizontal: theme.spacing.xl,
     paddingBottom: theme.spacing.xxl,
-    paddingTop: theme.spacing.sm,
+  },
+  chartWrapper: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 24,
+    padding: theme.spacing.lg,
+    marginBottom: theme.spacing.xl,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadows.card,
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 20,
+  },
+  chartTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
   },
   statsRow: {
     flexDirection: 'row',
-    gap: theme.spacing.md,
+    gap: 12,
     marginBottom: theme.spacing.xl,
   },
   statCard: {
     flex: 1,
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
+    borderRadius: 20,
+    padding: 16,
     ...theme.shadows.card,
-    borderWidth: 0.5,
+    borderWidth: 1,
     borderColor: theme.colors.border,
   },
   statLabel: {
-    fontSize: 13,
-    color: theme.colors.text.secondary,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: theme.colors.text.primary,
-  },
-  statValueSuffix: {
-    fontSize: 14,
+    fontSize: 12,
     color: theme.colors.text.secondary,
     fontWeight: '600',
-  },
-  ctaCard: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.xl,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  ctaIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ctaTextContainer: {
-    flex: 1,
-  },
-  ctaTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.surface,
     marginBottom: 4,
   },
-  ctaSubtitle: {
+  statValue: {
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: theme.colors.text.primary,
+    marginBottom: theme.spacing.md,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: theme.spacing.xl,
+  },
+  actionItem: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    paddingVertical: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    ...theme.shadows.card,
+  },
+  actionIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  actionText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.8)',
+    fontWeight: '800',
+    color: theme.colors.text.primary,
+    letterSpacing: -0.2,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -294,108 +334,66 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: theme.spacing.md,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
-  },
   seeAll: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.colors.primary,
   },
+  analysisCard: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadows.card,
+  },
+  analysisMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  fileIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  analysisInfo: {
+    flex: 1,
+  },
+  analysisName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.text.primary,
+    marginBottom: 2,
+  },
+  analysisDate: {
+    fontSize: 12,
+    color: theme.colors.text.secondary,
+  },
+  scoreBadge: {
+    backgroundColor: theme.colors.background,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  scoreText: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
   emptyState: {
-    padding: 20,
+    padding: 40,
     alignItems: 'center',
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    borderWidth: 0.5,
+    borderRadius: 20,
+    borderWidth: 1,
     borderColor: theme.colors.border,
   },
   emptyText: {
     color: theme.colors.text.secondary,
-  },
-  analysisCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.md,
-    ...theme.shadows.card,
-    borderWidth: 0.5,
-    borderColor: theme.colors.border,
-  },
-  analysisHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  analysisTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-    paddingRight: 12,
-  },
-  analysisName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
-    flex: 1,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  progressContainer: {
-    height: 4,
-    width: '100%',
-    position: 'relative',
-    marginBottom: 12,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressBg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: theme.colors.background,
-    zIndex: 1,
-  },
-  progressBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    zIndex: 2,
-    borderRadius: 2,
-  },
-  analysisFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  analysisMeta: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
-  },
-  tag: {
-    backgroundColor: theme.colors.background,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  tagText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: theme.colors.text.secondary,
+    fontWeight: '500',
   }
 });
 

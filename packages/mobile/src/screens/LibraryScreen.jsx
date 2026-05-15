@@ -109,7 +109,7 @@ const LibraryScreen = ({ navigation }) => {
   const renderFileItem = useCallback(({ item }) => (
     <FileCard 
       file={item}
-      onPress={() => navigation.navigate('Results', { contractId: item.id })}
+      onPress={() => navigation.navigate('Results', { contractId: item.id, initialTab: 'document' })}
       onOptions={handleFileOptions}
     />
   ), [navigation, handleFileOptions]);
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
+    paddingTop: 56, // Daha ferah bir üst boşluk (Çentik/kamera kurtarma)
     paddingBottom: theme.spacing.sm,
   },
   headerTitle: {

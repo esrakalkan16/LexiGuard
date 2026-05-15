@@ -102,7 +102,6 @@ app.post('/api/analyze', upload.single('file'), async (req, res) => {
             if (authError) {
                 console.error('Auth Hatası:', authError.message);
             }
-
             if (!authError && user) {
                 console.log('Kullanıcı bulundu:', user.id, 'Sözleşme kaydediliyor...');
                 const { data: contract, error: dbError } = await supabase

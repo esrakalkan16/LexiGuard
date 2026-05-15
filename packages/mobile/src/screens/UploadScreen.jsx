@@ -15,8 +15,8 @@ import {
 } from 'react-native';
 import { 
   ArrowLeft, 
+  ArrowRight,
   UploadCloud, 
-  Camera, 
   ClipboardType, 
   ShieldCheck,
   X
@@ -24,7 +24,6 @@ import {
 import { theme } from '../theme/theme';
 import { supabase } from '../api/supabase';
 import { useContracts } from '../context/ContractsContext';
-
 import DocumentPicker from 'react-native-document-picker';
 
 const UploadScreen = ({ navigation }) => {
@@ -34,58 +33,75 @@ const UploadScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  const [loadingMessage, setLoadingMessage] = useState('Analiz başlatılıyor...');
+
   const handleSimulateUpload = async () => {
-    try {
-      const res = await DocumentPicker.pickSingle({
-        type: [DocumentPicker.types.pdf, DocumentPicker.types.doc, DocumentPicker.types.docx, DocumentPicker.types.plainText],
-      });
+    if (uploading) return;
 
-      if (!res.uri) return;
-
-      setUploading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      const formData = new FormData();
-      formData.append('file', {
-        uri: res.uri,
-        type: res.type,
-        name: res.name,
-      });
-
-      const response = await fetch('http://10.0.2.2:3000/api/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-        },
-        body: formData
-      });
-
-      const data = await response.json();
-      setUploading(false);
-
-      if (response.ok) {
-        if (data.db_record) {
-          addContract(data.db_record);
-        }
-        // Gelen veriyi Sonuç ekranına yolluyoruz (Sadece ID gönderiyoruz, performans için)
-        navigation.replace('Results', { 
-          contractId: data.db_record?.id,
-          contractData: data.db_record ? null : data 
+    setTimeout(async () => {
+      try {
+        const res = await DocumentPicker.pickSingle({
+          type: [DocumentPicker.types.pdf, DocumentPicker.types.doc, DocumentPicker.types.docx, DocumentPicker.types.plainText],
+        }).catch(e => {
+          if (DocumentPicker.isCancel(e)) return null;
+          throw e;
         });
-      } else {
-        Alert.alert("Analiz Hatası", data.error || "Bir hata oluştu.");
+
+        if (!res) return;
+
+        setUploading(true);
+        setLoadingMessage('Dosya yükleniyor...');
+        
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
+        const formData = new FormData();
+        formData.append('file', {
+          uri: res.uri,
+          type: res.type,
+          name: res.name,
+        });
+
+        setLoadingMessage('Yapay zeka analiz ediyor...');
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        const response = await fetch('http://10.0.2.2:3000/api/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          },
+          body: formData,
+          signal: controller.signal
+        }).finally(() => clearTimeout(timeoutId));
+
+        const data = await response.json();
+        setUploading(false);
+
+        if (response.ok) {
+          setLoadingMessage('Sonuçlar hazır!');
+          if (data.db_record) {
+            addContract(data.db_record);
+          }
+          navigation.replace('Results', { 
+            contractId: data.db_record?.id,
+            contractData: data.db_record ? null : data 
+          });
+        } else {
+          Alert.alert("Analiz Hatası", data.error || "Bir hata oluştu.");
+        }
+      } catch (err) {
+        setUploading(false);
+        console.error(err);
+        if (err.name === 'AbortError') {
+          Alert.alert("Zaman Aşımı", "Sunucu çok geç yanıt verdi. Lütfen tekrar deneyin.");
+        } else {
+          Alert.alert("Hata", "Dosya seçilirken veya yüklenirken bir sorun oluştu.");
+        }
       }
-    } catch (err) {
-      setUploading(false);
-      if (DocumentPicker.isCancel(err)) {
-        // Kullanıcı seçimi iptal etti
-      } else {
-        console.log("Picker Error:", err);
-        Alert.alert("Hata", "Dosya seçilirken bir sorun oluştu.");
-      }
-    }
+    }, 100);
   };
 
   const handleAnalyzeText = async () => {
@@ -94,29 +110,37 @@ const UploadScreen = ({ navigation }) => {
     }
 
     setLoading(true);
+    setLoadingMessage('Metin taranıyor...');
+    
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       
+      setLoadingMessage('Hukuki riskler hesaplanıyor...');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const response = await fetch('http://10.0.2.2:3000/api/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ text: contractText })
-      });
+        body: JSON.stringify({ text: contractText }),
+        signal: controller.signal
+      }).finally(() => clearTimeout(timeoutId));
       
       const data = await response.json();
       setLoading(false);
       
       if (response.ok) {
+        setLoadingMessage('Analiz tamamlandı!');
         if (data.db_record) {
           addContract(data.db_record);
         }
         setPasteModalVisible(false);
         setContractText('');
-        // Gelen veriyi Sonuç ekranına yolluyoruz
         navigation.replace('Results', { 
           contractId: data.db_record?.id,
           contractData: data.db_record ? null : data 
@@ -126,8 +150,11 @@ const UploadScreen = ({ navigation }) => {
       }
     } catch (error) {
       setLoading(false);
-      console.log("Fetch Error:", error);
-      Alert.alert("Bağlantı Hatası", "Backend sunucusuna (localhost:3000) ulaşılamadı. Sunucunun çalıştığından emin olun.");
+      if (error.name === 'AbortError') {
+        Alert.alert("Zaman Aşımı", "Analiz süresi doldu. Lütfen metni kısaltıp tekrar deneyin.");
+      } else {
+        Alert.alert("Bağlantı Hatası", "Backend sunucusuna ulaşılamadı.");
+      }
     }
   };
 
@@ -139,85 +166,82 @@ const UploadScreen = ({ navigation }) => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <ArrowLeft color={theme.colors.text.primary} size={24} />
+          <ArrowLeft color={theme.colors.text.primary} size={22} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Yeni Analiz</Text>
-        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.flex} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         
-        {/* Main Upload Zone */}
-        <TouchableOpacity 
-          style={styles.uploadZone} 
-          activeOpacity={0.8}
-          onPress={handleSimulateUpload}
-        >
-          <View style={styles.uploadIconContainer}>
-            <UploadCloud color={theme.colors.primary} size={36} />
-          </View>
-          <Text style={styles.uploadTitle}>Sözleşme Yükle</Text>
-          <Text style={styles.uploadSubtitle}>Cihazınızdaki dosyaları buraya sürükleyin</Text>
-          
-          <View style={styles.uploadButton}>
-            {uploading ? (
-              <ActivityIndicator color={theme.colors.surface} />
-            ) : (
-              <Text style={styles.uploadButtonText}>Dosya Seç</Text>
-            )}
-          </View>
-          
-          <Text style={styles.uploadHint}>25MB'a kadar PDF, DOCX, TXT</Text>
-        </TouchableOpacity>
-
-        {/* Divider */}
-        <View style={styles.dividerContainer}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>veya</Text>
-          <View style={styles.dividerLine} />
+        {/* Login-style Title Section */}
+        <View style={styles.titleArea}>
+          <Text style={styles.titleText}>Yeni Analiz</Text>
+          <Text style={styles.subtitleText}>Hukuki riskleri belirlemek için sözleşmenizi yükleyin.</Text>
         </View>
 
-        {/* Action Options */}
-        <View style={styles.optionsContainer}>
-          <TouchableOpacity style={styles.optionCard} onPress={handleSimulateUpload}>
-            <View style={[styles.optionIconContainer, { backgroundColor: '#f0fdf4' }]}>
-              <Camera color="#16a34a" size={24} />
-            </View>
-            <View style={styles.optionTextContainer}>
-              <Text style={styles.optionTitle}>Fotoğraf Çek</Text>
-              <Text style={styles.optionSubtitle}>Belgenin fotoğrafını çekerek tara</Text>
-            </View>
-          </TouchableOpacity>
-
+        {/* Modern Upload Zone */}
+        <View style={styles.uploadSection}>
           <TouchableOpacity 
-            style={styles.optionCard}
-            onPress={() => setPasteModalVisible(true)}
+            style={styles.uploadZone} 
+            activeOpacity={0.8}
+            onPress={handleSimulateUpload}
           >
-            <View style={[styles.optionIconContainer, { backgroundColor: '#fffbeb' }]}>
-              <ClipboardType color="#d97706" size={24} />
+            <View style={styles.uploadIconContainer}>
+              <UploadCloud color={theme.colors.primary} size={32} />
             </View>
-            <View style={styles.optionTextContainer}>
-              <Text style={styles.optionTitle}>Metin Yapıştır</Text>
-              <Text style={styles.optionSubtitle}>Kopyaladığınız metni doğrudan yapıştırın</Text>
+            <Text style={styles.uploadTitle}>Sözleşme Yükle</Text>
+            <Text style={styles.uploadSubtitle}>PDF, DOCX veya TXT dosyalarınızı seçin</Text>
+            
+            <View style={styles.uploadButton}>
+              {uploading ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <ActivityIndicator color="#fff" />
+                  <Text style={styles.uploadButtonText}>{loadingMessage.toUpperCase()}</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.uploadButtonText}>DOSYA SEÇ</Text>
+                  <ArrowRight color="#fff" size={16} />
+                </>
+              )}
             </View>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.divider} />
+          <Text style={styles.dividerText}>VEYA</Text>
+          <View style={styles.divider} />
+        </View>
+
+        {/* Text Action Card (Login Style) */}
+        <TouchableOpacity 
+          style={styles.optionCard}
+          onPress={() => setPasteModalVisible(true)}
+        >
+          <View style={[styles.optionIcon, { backgroundColor: '#f8fafc' }]}>
+            <ClipboardType color={theme.colors.primary} size={24} />
+          </View>
+          <View style={styles.optionInfo}>
+            <Text style={styles.optionTitle}>METİN YAPIŞTIR</Text>
+            <Text style={styles.optionSubtitle}>Sözleşme metnini doğrudan buraya aktarın</Text>
+          </View>
+          <ArrowRight color="#cbd5e1" size={20} />
+        </TouchableOpacity>
+
+        <View style={styles.infoBox}>
+          <ShieldCheck color="#64748b" size={20} />
+          <Text style={styles.infoText}>
+            Yüklediğiniz belgeler uçtan uca şifrelenir ve analizden sonra sunucularımızdan tamamen silinir.
+          </Text>
         </View>
 
       </ScrollView>
 
-      {/* Security Note Footer */}
-      <View style={styles.securityFooter}>
-        <ShieldCheck color={theme.colors.text.secondary} size={18} />
-        <Text style={styles.securityText}>
-          Belgeleriniz uçtan uca şifrelenir ve analizden sonra silinir.
-        </Text>
-      </View>
-
       {/* PASTE TEXT MODAL */}
-      <Modal
-        visible={pasteModalVisible}
-        animationType="slide"
-        transparent={true}
+      <Modal 
+        visible={pasteModalVisible} 
+        animationType="slide" 
+        transparent={true} 
         onRequestClose={() => setPasteModalVisible(false)}
       >
         <KeyboardAvoidingView 
@@ -226,9 +250,9 @@ const UploadScreen = ({ navigation }) => {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sözleşme Metnini Yapıştır</Text>
-              <TouchableOpacity onPress={() => setPasteModalVisible(false)}>
-                <X color={theme.colors.text.secondary} size={24} />
+              <Text style={styles.modalTitle}>Metin Yapıştır</Text>
+              <TouchableOpacity style={styles.closeButton} onPress={() => setPasteModalVisible(false)}>
+                <X color={theme.colors.text.secondary} size={20} />
               </TouchableOpacity>
             </View>
             
@@ -248,9 +272,15 @@ const UploadScreen = ({ navigation }) => {
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color="#fff" />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <ActivityIndicator color="#fff" />
+                  <Text style={styles.analyzeButtonText}>{loadingMessage.toUpperCase()}</Text>
+                </View>
               ) : (
-                <Text style={styles.analyzeButtonText}>Yapay Zeka ile Analiz Et</Text>
+                <>
+                  <Text style={styles.analyzeButtonText}>ANALİZİ BAŞLAT</Text>
+                  <ArrowRight color="#fff" size={16} />
+                </>
               )}
             </TouchableOpacity>
           </View>
@@ -264,203 +294,234 @@ const UploadScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: '#ffffff', // Login ile aynı bembeyaz arka plan
   },
   flex: {
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    backgroundColor: theme.colors.background,
+    paddingHorizontal: 32,
+    paddingTop: 56, // Daha ferah bir üst boşluk
+    paddingBottom: 16,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.surface,
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#f8fafc',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 0.5,
-    borderColor: theme.colors.border,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   content: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xl,
-    paddingBottom: theme.spacing.xxl,
+    paddingHorizontal: 32,
+    paddingBottom: 40,
+  },
+  titleArea: {
+    marginBottom: 32,
+  },
+  titleText: {
+    fontSize: 42,
+    fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: -1.5,
+    marginBottom: 8,
+  },
+  subtitleText: {
+    fontSize: 16,
+    color: '#64748b',
+    fontWeight: '500',
+    letterSpacing: -0.2,
+    lineHeight: 22,
+  },
+  uploadSection: {
+    marginBottom: 32,
   },
   uploadZone: {
-    backgroundColor: '#eff6ff',
-    borderWidth: 2,
-    borderColor: '#bfdbfe',
-    borderStyle: 'dashed',
-    borderRadius: theme.borderRadius.xl,
-    padding: theme.spacing.xxl,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 24,
+    padding: 32,
     alignItems: 'center',
-    marginBottom: theme.spacing.xl,
+    borderStyle: 'dashed',
   },
   uploadIconContainer: {
     width: 64,
     height: 64,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.surface,
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   uploadTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
-    color: theme.colors.text.primary,
-    marginBottom: 8,
+    color: '#0f172a',
+    marginBottom: 4,
   },
   uploadSubtitle: {
-    fontSize: 14,
-    color: theme.colors.text.secondary,
+    fontSize: 13,
+    color: '#94a3b8',
     textAlign: 'center',
-    marginBottom: theme.spacing.lg,
-  },
-  uploadButton: {
-    backgroundColor: theme.colors.primary,
-    paddingHorizontal: theme.spacing.xl,
-    paddingVertical: 12,
-    borderRadius: theme.borderRadius.md,
-    marginBottom: theme.spacing.md,
-  },
-  uploadButtonText: {
-    color: theme.colors.surface,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  uploadHint: {
-    fontSize: 12,
-    color: theme.colors.text.secondary,
+    marginBottom: 24,
     fontWeight: '500',
   },
-  dividerContainer: {
+  uploadButton: {
+    backgroundColor: '#0f172a',
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  uploadButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  dividerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.xl,
+    marginBottom: 32,
   },
-  dividerLine: {
+  divider: {
     flex: 1,
     height: 1,
-    backgroundColor: theme.colors.border,
+    backgroundColor: '#f1f5f9',
   },
   dividerText: {
-    marginHorizontal: theme.spacing.md,
-    color: theme.colors.text.secondary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  optionsContainer: {
-    gap: theme.spacing.md,
+    marginHorizontal: 16,
+    color: '#cbd5e1',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
   optionCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.lg,
+    backgroundColor: '#ffffff',
+    borderRadius: 20,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 0.5,
-    borderColor: theme.colors.border,
-    ...theme.shadows.card,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    marginBottom: 32,
   },
-  optionIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.md,
+  optionIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: theme.spacing.md,
+    marginRight: 16,
   },
-  optionTextContainer: {
+  optionInfo: {
     flex: 1,
   },
   optionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.colors.text.primary,
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: 1,
     marginBottom: 4,
   },
   optionSubtitle: {
     fontSize: 12,
-    color: theme.colors.text.secondary,
+    color: '#64748b',
+    fontWeight: '500',
   },
-  securityFooter: {
+  infoBox: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 20,
+    padding: 20,
+    gap: 16,
     alignItems: 'center',
-    padding: theme.spacing.lg,
-    backgroundColor: theme.colors.background,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
-    gap: 8,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
-  securityText: {
-    fontSize: 11,
-    color: theme.colors.text.secondary,
-    fontWeight: '600',
+  infoText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#64748b',
+    lineHeight: 18,
+    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    backgroundColor: 'rgba(15, 23, 42, 0.7)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: theme.colors.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-    height: '70%',
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 32,
+    paddingBottom: Platform.OS === 'ios' ? 48 : 32,
+    height: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: theme.colors.text.primary,
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0f172a',
+    letterSpacing: -0.5,
   },
-  textArea: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
-    padding: 16,
-    fontSize: 15,
-    color: theme.colors.text.primary,
-    marginBottom: 16,
-  },
-  analyzeButton: {
-    backgroundColor: theme.colors.primary,
-    height: 56,
-    borderRadius: theme.borderRadius.md,
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#f8fafc',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  analyzeButtonText: {
-    color: theme.colors.surface,
+  textArea: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 20,
+    padding: 24,
     fontSize: 16,
-    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 24,
+    fontWeight: '500',
+  },
+  analyzeButton: {
+    backgroundColor: '#0f172a',
+    height: 64,
+    borderRadius: 20,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  analyzeButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 2,
   }
 });
 

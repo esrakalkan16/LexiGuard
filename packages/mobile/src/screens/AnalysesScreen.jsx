@@ -7,18 +7,16 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { 
   Search, 
-  SlidersHorizontal,
   FileText
 } from 'lucide-react-native';
 import { theme } from '../theme/theme';
 import { useContracts } from '../context/ContractsContext';
-
-const FILTER_PILLS = ['Tümü', 'Yüksek Risk', 'Orta Risk', 'Düşük Risk'];
 
 const AnalysisCard = React.memo(({ item, onPress }) => {
   const score = item.risk_score || 0;
@@ -59,7 +57,6 @@ const AnalysisCard = React.memo(({ item, onPress }) => {
 });
 
 const AnalysesScreen = ({ navigation }) => {
-  const [activeFilter, setActiveFilter] = useState('Tümü');
   const [searchQuery, setSearchQuery] = useState('');
   
   const { contracts, loading, fetchContracts } = useContracts();
@@ -70,20 +67,11 @@ const AnalysesScreen = ({ navigation }) => {
     }, [fetchContracts])
   );
 
-  // useMemo ile filtreleme — sadece ilgili bağımlılıklar değiştiğinde çalışır
   const filteredContracts = useMemo(() => {
     return contracts.filter(contract => {
-      const titleMatch = (contract.filename || contract.title || '').toLowerCase().includes(searchQuery.toLowerCase());
-      
-      let riskMatch = true;
-      const score = contract.risk_score || 0;
-      if (activeFilter === 'Yüksek Risk') riskMatch = score >= 70;
-      else if (activeFilter === 'Orta Risk') riskMatch = score >= 35 && score < 70;
-      else if (activeFilter === 'Düşük Risk') riskMatch = score < 35;
-
-      return titleMatch && riskMatch;
+      return (contract.filename || contract.title || '').toLowerCase().includes(searchQuery.toLowerCase());
     });
-  }, [contracts, searchQuery, activeFilter]);
+  }, [contracts, searchQuery]);
 
   const renderItem = useCallback(({ item }) => (
     <AnalysisCard 
@@ -113,16 +101,6 @@ const AnalysesScreen = ({ navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Analizlerim</Text>
-        <TouchableOpacity 
-          style={styles.filterIconButton}
-          onPress={() => {
-            setSearchQuery('');
-            setActiveFilter('Tümü');
-            Alert.alert("Filtreler", "Arama ve filtreler sıfırlandı.");
-          }}
-        >
-          <SlidersHorizontal color={theme.colors.text.primary} size={20} />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.searchSection}>
@@ -137,29 +115,6 @@ const AnalysesScreen = ({ navigation }) => {
             onChangeText={setSearchQuery}
           />
         </View>
-
-        {/* Filter Pills */}
-        <FlatList
-          horizontal
-          data={FILTER_PILLS}
-          showsHorizontalScrollIndicator={false}
-          style={styles.pillsContainer}
-          contentContainerStyle={{ paddingHorizontal: theme.spacing.lg }}
-          keyExtractor={(item) => item}
-          renderItem={({ item: pill }) => {
-            const isActive = activeFilter === pill;
-            return (
-              <TouchableOpacity 
-                style={[styles.pill, isActive && styles.pillActive]}
-                onPress={() => setActiveFilter(pill)}
-              >
-                <Text style={[styles.pillText, isActive && styles.pillTextActive]}>
-                  {pill}
-                </Text>
-              </TouchableOpacity>
-            );
-          }}
-        />
       </View>
 
       {loading ? (
@@ -193,7 +148,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
+    paddingTop: 56, // Daha ferah bir üst boşluk
     paddingBottom: theme.spacing.md,
   },
   headerTitle: {
