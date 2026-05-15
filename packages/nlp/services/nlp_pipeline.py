@@ -244,7 +244,7 @@ CATEGORY_RISK_META: dict[str, dict[str, str]] = {
 }
 
 # Risk skoru ağırlıkları (seviyeye göre)
-_RISK_WEIGHTS = {"high": 30, "medium": 15, "low": 2}
+_RISK_WEIGHTS = {"high": 60, "medium": 30, "low": 10}
 
 RISK_LEVEL_LABELS = {
     "low":    "Düşük Risk",
@@ -359,20 +359,25 @@ def analyze_text(text: str) -> dict[str, Any]:
             "confidence":  round(confidence, 4),
         })
 
-    # --- Risk skoru hesapla ---
-    total_score = 0
-    for item in detected_risks:
-        weight = _RISK_WEIGHTS.get(item["risk_level"], 2)
-        # Confidence ile ağırlıklandır
-        total_score += weight * item["confidence"]
-
-    # 0–100 arasına normalize et (max teorik skor ~300, makul üst sınır 100)
-    risk_score = int(min(100, max(0, total_score)))
+    # --- Risk skoru hesapla (Daha dengeli bir mantık) ---
+    if not detected_risks:
+        risk_score = 0
+    else:
+        # Ağırlıkları hesapla (confidence ile çarpılmış)
+        scores = [_RISK_WEIGHTS.get(item["risk_level"], 2) * item["confidence"] for item in detected_risks]
+        
+        # En yüksek riski baz al (Base score)
+        max_score = max(scores)
+        # Diğer risklerin sadece %20'sini ekle (Doygunluk efekti)
+        other_scores_sum = sum(scores) - max_score
+        
+        raw_score = max_score + (other_scores_sum * 0.2)
+        risk_score = int(min(100, max(0, raw_score)))
 
     # --- Risk seviyesi ---
-    if risk_score < 30:
+    if risk_score < 35:
         risk_level = "low"
-    elif risk_score < 60:
+    elif risk_score < 70:
         risk_level = "medium"
     else:
         risk_level = "high"

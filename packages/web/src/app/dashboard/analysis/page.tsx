@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import {
@@ -12,6 +12,7 @@ import {
   Info,
   ShieldAlert,
   Zap,
+  Shield,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -28,8 +29,6 @@ interface AnalysisResult {
   strengths: string[];
   classification: string;
 }
-
-import { Suspense } from "react";
 
 function AnalyzerContent() {
   const searchParams = useSearchParams();
@@ -52,7 +51,6 @@ function AnalyzerContent() {
     setAnalyzing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-
       let analysisData = null;
 
       if (session?.user) {
@@ -67,7 +65,6 @@ function AnalyzerContent() {
         }
       }
 
-      // If not found in Supabase or guest, check local storage
       if (!analysisData) {
         const historyStr = localStorage.getItem("analysis_history");
         if (historyStr) {
@@ -80,7 +77,6 @@ function AnalyzerContent() {
       }
 
       if (analysisData) {
-        // Map the backend data format to the frontend AnalysisResult format
         const riskLevelMap: Record<string, "Yüksek" | "Orta" | "Düşük"> = {
           high: "Yüksek",
           medium: "Orta",
@@ -181,8 +177,6 @@ function AnalyzerContent() {
 
       const data = await response.json();
 
-      // Backend returns `risk_items` with {category, risk_level("high"/"medium"/"low"), description, confidence}
-      // Frontend expects `risks` with {clause, level("Yüksek"/"Orta"/"Düşük"), description, suggestion}
       const riskLevelMap: Record<string, "Yüksek" | "Orta" | "Düşük"> = {
         high: "Yüksek",
         medium: "Orta",
@@ -196,7 +190,7 @@ function AnalyzerContent() {
       };
 
       const riskItems: AnalysisResult["risks"] = (data.risk_items || []).map(
-        (item: { category: string; risk_level: string; description: string; confidence: number }) => ({
+        (item: any) => ({
           clause: item.category,
           level: riskLevelMap[item.risk_level] ?? "Düşük",
           description: item.description,
@@ -204,13 +198,11 @@ function AnalyzerContent() {
         })
       );
 
-      // Derive strengths: low-risk items are contract strengths
       const strengths: string[] = (data.risk_items || [])
-        .filter((item: { risk_level: string }) => item.risk_level === "low")
+        .filter((item: any) => item.risk_level === "low")
         .slice(0, 4)
-        .map((item: { category: string; description: string }) => `${item.category}: ${item.description}`);
+        .map((item: any) => `${item.category}: ${item.description}`);
 
-      // Classification: dominant category from first risk item
       const classification: string =
         data.risk_items?.[0]?.category ||
         (data.risk_score > 60 ? "Yüksek Riskli Sözleşme" :
@@ -226,11 +218,8 @@ function AnalyzerContent() {
 
       setResult(analysisResult);
 
-      // Persist to localStorage for dashboard
       const existingHistoryStr = localStorage.getItem("analysis_history");
-      const existingHistory = existingHistoryStr
-        ? JSON.parse(existingHistoryStr)
-        : [];
+      const existingHistory = existingHistoryStr ? JSON.parse(existingHistoryStr) : [];
       const score = analysisResult.risk_score;
       const newEntry = {
         name: file.name,
@@ -254,10 +243,7 @@ function AnalyzerContent() {
         id: data.db_record?.id || `LX-${Math.floor(Math.random() * 10000)}-2024`,
         analysisData: data,
       };
-      localStorage.setItem(
-        "analysis_history",
-        JSON.stringify([newEntry, ...existingHistory])
-      );
+      localStorage.setItem("analysis_history", JSON.stringify([newEntry, ...existingHistory]));
     } catch (err: any) {
       setError(err.message || "Beklenmeyen bir hata oluştu.");
     } finally {
@@ -273,225 +259,163 @@ function AnalyzerContent() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Drop zone: shown when no file and no result */}
-      {!file && !result && (
+      {!file && !result && !analyzing && (
         <div className="space-y-8">
           <div className="text-center space-y-2">
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              Intelligence Gateway
-            </h2>
-            <p className="text-slate-400 text-sm font-medium">
-              Upload legal documents for instantaneous risk stratification.
-            </p>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Intelligence Gateway</h2>
+            <p className="text-slate-400 text-sm font-medium">Upload legal documents for instantaneous risk stratification.</p>
           </div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={() => document.getElementById("file-input")?.click()}
-            className={cn(
-              "group relative overflow-hidden border border-slate-200 border-dashed rounded-xl p-16 flex flex-col items-center justify-center transition-all duration-300 cursor-pointer bg-white",
-              isDragActive ? "border-slate-900 bg-slate-50" : "hover:border-slate-400"
-            )}
-          >
-            <div
+          <div className="max-w-2xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => document.getElementById("file-input")?.click()}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               className={cn(
-                "p-5 rounded-lg transition-all duration-300",
-                isDragActive
-                  ? "bg-slate-900 text-white"
-                  : "bg-slate-50 text-slate-400 group-hover:text-slate-600"
+                "relative border-2 border-dashed rounded-[2.5rem] p-16 text-center transition-all duration-500 cursor-pointer group overflow-hidden",
+                isDragActive ? "border-slate-900 bg-slate-50 shadow-2xl scale-[1.02]" : "border-slate-200 bg-white hover:border-slate-400 hover:shadow-xl hover:shadow-slate-100"
               )}
             >
-              <Upload className="w-8 h-8" />
+              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.01] pointer-events-none" />
+              <div className="relative z-10 flex flex-col items-center">
+                <div className={cn(
+                  "w-20 h-20 rounded-3xl flex items-center justify-center transition-all duration-500 shadow-2xl",
+                  isDragActive ? "bg-slate-900 text-white scale-110" : "bg-slate-50 text-slate-400 group-hover:bg-slate-900 group-hover:text-white"
+                )}>
+                  <Upload className="w-8 h-8" />
+                </div>
+                <div className="mt-8 space-y-3">
+                  <h3 className="text-xl font-black text-slate-900 tracking-tighter">{isDragActive ? "Drop to Analyze" : "Upload Document"}</h3>
+                  <p className="text-slate-400 text-sm font-medium max-w-[240px] mx-auto leading-relaxed uppercase tracking-tighter">
+                    Drag and drop your contract or <span className="text-slate-900 font-bold border-b-2 border-slate-900/10">browse files</span>
+                  </p>
+                </div>
+                <div className="mt-10 flex items-center gap-6 pt-6 border-t border-slate-50 w-full justify-center">
+                  {["PDF", "DOCX", "TXT"].map((ext) => (
+                    <div key={ext} className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                      <span className="text-[10px] font-black text-slate-300 tracking-widest">{ext}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-900 scale-x-0 group-hover:scale-x-100 transition-transform duration-700 origin-left" />
+              <input id="file-input" type="file" className="hidden" accept=".pdf,.docx,.txt" onChange={handleFileChange} />
+            </motion.div>
+            <div className="mt-8 flex items-center justify-center gap-3 text-slate-400">
+               <Shield className="w-4 h-4" />
+               <span className="text-[10px] font-bold uppercase tracking-[0.2em]">End-to-End Encrypted Analysis</span>
             </div>
-            <h3 className="mt-6 text-sm font-bold text-slate-900 uppercase tracking-widest">
-              Drop Repository Files
-            </h3>
-            <p className="text-slate-400 mt-2 text-xs font-medium uppercase tracking-tighter">
-              PDF, DOCX, TXT • MAX 25MB
-            </p>
-            <input
-              id="file-input"
-              type="file"
-              className="hidden"
-              accept=".pdf,.docx,.txt"
-              onChange={handleFileChange}
-            />
-          </motion.div>
-
-          {error && (
-            <p className="text-center text-rose-500 text-sm font-medium">
-              {error}
-            </p>
-          )}
+          </div>
         </div>
       )}
 
-      {/* File selected, awaiting analysis */}
       {file && !result && !analyzing && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white border border-slate-200 rounded-xl p-10 flex flex-col items-center max-w-xl mx-auto"
-        >
-          <div className="w-16 h-16 bg-slate-50 rounded-lg flex items-center justify-center mb-6 border border-slate-100">
-            <FileText className="w-8 h-8 text-slate-400" />
+        <div className="space-y-8">
+          <div className="text-center space-y-2">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Confirm Analysis</h2>
+            <p className="text-slate-400 text-sm font-medium">Verify your document details before starting the AI extraction.</p>
           </div>
-          <h3 className="text-sm font-bold text-slate-900">{file.name}</h3>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-            {(file.size / 1024 / 1024).toFixed(2)} MB • READY FOR EXTRACTION
-          </p>
-
-          {error && (
-            <p className="mt-4 text-rose-500 text-sm font-medium text-center">
-              {error}
-            </p>
-          )}
-
-          <div className="flex gap-3 mt-10 w-full">
-            <button
-              onClick={reset}
-              className="flex-1 px-4 py-3 rounded-lg border border-slate-200 text-slate-500 text-xs font-bold hover:bg-slate-50 transition-colors uppercase tracking-widest"
+          <div className="max-w-2xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              className="relative border-2 border-dashed border-slate-200 rounded-[2.5rem] p-16 text-center bg-white shadow-2xl shadow-slate-100 overflow-hidden group"
             >
-              Abort
-            </button>
-            <button
-              onClick={handleStartAnalysis}
-              className="flex-[2] px-6 py-4 rounded-xl bg-slate-900 text-white text-[11px] font-black hover:bg-slate-800 transition-all flex items-center justify-center gap-3 uppercase tracking-[0.2em] shadow-xl shadow-slate-200 group"
-            >
-              <Zap className="w-4 h-4 text-amber-400 group-hover:scale-125 transition-transform" />
-              Secure Extract
-            </button>
+              <div className="absolute top-0 right-0 w-48 h-48 bg-slate-50 rounded-full -mr-24 -mt-24 blur-3xl opacity-50" />
+              <div className="relative z-10 flex flex-col items-center">
+                <div className="relative mb-8">
+                  <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center shadow-2xl group-hover:rotate-6 transition-transform duration-500">
+                    <FileText className="w-10 h-10 text-white" />
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-emerald-500 rounded-full border-4 border-white flex items-center justify-center shadow-lg">
+                    <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  </div>
+                </div>
+                <div className="space-y-3 mb-10">
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tighter">{file.name}</h3>
+                  <div className="flex items-center gap-3 justify-center">
+                    <span className="px-4 py-1.5 bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-slate-200">
+                      {(file.size / 1024 / 1024).toFixed(2)} MB
+                    </span>
+                    <span className="px-4 py-1.5 bg-emerald-50 text-emerald-600 text-[10px] font-black uppercase tracking-[0.2em] rounded-full border border-emerald-100">
+                      Ready for Extraction
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-4 w-full">
+                  <button onClick={reset} className="flex-1 px-8 py-5 rounded-2xl border border-slate-200 text-slate-400 text-[11px] font-black hover:bg-slate-50 hover:text-slate-900 transition-all uppercase tracking-[0.3em]">Cancel Session</button>
+                  <button onClick={handleStartAnalysis} className="flex-[2] px-8 py-5 rounded-2xl bg-slate-900 text-white text-[12px] font-black hover:bg-black transition-all flex items-center justify-center gap-4 uppercase tracking-[0.3em] shadow-2xl shadow-slate-200 relative overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600/0 via-white/10 to-blue-600/0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+                    <Zap className="w-5 h-5 text-amber-400 group-hover:scale-125 transition-transform relative z-10" />
+                    <span className="relative z-10">Initialize Analysis</span>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+            {error && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-6 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-600 text-[11px] font-bold uppercase tracking-widest text-center">{error}</motion.div>}
           </div>
-        </motion.div>
+        </div>
       )}
 
-      {/* Analyzing spinner - Premium Version */}
       {analyzing && (
         <div className="flex flex-col items-center justify-center py-32 space-y-8">
           <div className="relative">
-            {/* Outer Glow - Neutralized */}
             <div className="absolute inset-0 bg-slate-400/10 blur-3xl rounded-full scale-150 animate-pulse" />
-            
-            {/* Main Spinner Core */}
             <div className="relative w-24 h-24">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-0 border-[3px] border-slate-100 rounded-full"
-              />
-              <motion.div
-                animate={{ rotate: -360 }}
-                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-0 border-[3px] border-transparent border-t-slate-900 rounded-full"
-              />
+              <motion.div animate={{ rotate: 360 }} transition={{ duration: 3, repeat: Infinity, ease: "linear" }} className="absolute inset-0 border-[3px] border-slate-100 rounded-full" />
+              <motion.div animate={{ rotate: -360 }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }} className="absolute inset-0 border-[3px] border-transparent border-t-slate-900 rounded-full" />
               <div className="absolute inset-0 flex items-center justify-center">
                 <ShieldAlert className="w-8 h-8 text-slate-900 animate-bounce" />
               </div>
             </div>
           </div>
-
           <div className="text-center space-y-4 max-w-xs mx-auto">
-            <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em] animate-pulse">
-              AI Processing Engine
-            </h3>
-            
+            <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-[0.3em] animate-pulse">AI Processing Engine</h3>
             <div className="space-y-2">
               <div className="flex items-center gap-3 justify-center">
                 <div className="w-1.5 h-1.5 rounded-full bg-slate-900 animate-ping" />
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest leading-none">
-                  Legal-BERT Pipeline Active
-                </p>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest leading-none">Legal-BERT Pipeline Active</p>
               </div>
-              <p className="text-slate-300 text-[9px] font-medium leading-relaxed italic">
-                Sözleşme maddeleri taranıyor ve risk skorları hesaplanıyor. Bu işlem belgenin uzunluğuna göre 3-5 saniye sürebilir.
-              </p>
+              <p className="text-slate-300 text-[9px] font-medium leading-relaxed italic">Sözleşme maddeleri taranıyor ve risk skorları hesaplanıyor.</p>
             </div>
-
-            {/* Simulated Progress Steps */}
             <div className="flex gap-1 justify-center pt-2">
               {[0, 1, 2, 3].map((i) => (
-                <motion.div
-                  key={i}
-                  animate={{ 
-                    backgroundColor: ["#e2e8f0", "#0f172a", "#e2e8f0"],
-                  }}
-                  transition={{ 
-                    duration: 1.5, 
-                    repeat: Infinity, 
-                    delay: i * 0.2 
-                  }}
-                  className="h-1 w-6 rounded-full"
-                />
+                <motion.div key={i} animate={{ backgroundColor: ["#e2e8f0", "#0f172a", "#e2e8f0"] }} transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.2 }} className="h-1 w-6 rounded-full" />
               ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Results */}
       {result && (
         <AnimatePresence>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-8"
-          >
-            {/* Sidebar Results */}
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-8 h-fit">
               <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
-                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                    Risk Scorecard
-                  </h4>
-                  <ShieldAlert className={cn(
-                    "w-5 h-5",
-                    result.risk_score > 70 ? "text-rose-500" : result.risk_score > 30 ? "text-amber-500" : "text-emerald-500"
-                  )} />
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Risk Scorecard</h4>
+                  <ShieldAlert className={cn("w-5 h-5", result.risk_score > 70 ? "text-rose-500" : result.risk_score > 30 ? "text-amber-500" : "text-emerald-500")} />
                 </div>
-
                 <div className="flex items-baseline gap-2 mb-2">
-                  <span className="text-7xl font-black text-slate-900 tracking-tighter">
-                    {result.risk_score}
-                  </span>
+                  <span className="text-7xl font-black text-slate-900 tracking-tighter">{result.risk_score}</span>
                   <span className="text-slate-300 font-bold text-xl">/ 100</span>
                 </div>
-
-                {/* Dinamik Risk Barı */}
                 <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden mb-8">
-                  <motion.div 
-                    initial={{ width: 0 }}
-                    animate={{ width: `${result.risk_score}%` }}
-                    transition={{ duration: 1, ease: "easeOut" }}
-                    className={cn(
-                      "h-full rounded-full",
-                      result.risk_score > 70 ? "bg-rose-500" : result.risk_score > 30 ? "bg-amber-500" : "bg-emerald-500"
-                    )}
-                  />
+                  <motion.div initial={{ width: 0 }} animate={{ width: `${result.risk_score}%` }} transition={{ duration: 1, ease: "easeOut" }} className={cn("h-full rounded-full", result.risk_score > 70 ? "bg-rose-500" : result.risk_score > 30 ? "bg-amber-500" : "bg-emerald-500")} />
                 </div>
-
                 <div className="space-y-6">
                   <div className="p-5 bg-slate-50 rounded-xl border border-slate-100">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        Classification
-                      </span>
-                      <span className="px-2 py-0.5 bg-slate-900 text-white text-[9px] font-black rounded uppercase tracking-tighter">
-                        {result.classification}
-                      </span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Classification</span>
+                      <span className="px-2 py-0.5 bg-slate-900 text-white text-[9px] font-black rounded uppercase tracking-tighter">{result.classification}</span>
                     </div>
-                    <p className="text-sm text-slate-600 font-medium leading-relaxed italic">
-                      &ldquo;{result.summary}&rdquo;
-                    </p>
+                    <p className="text-sm text-slate-600 font-medium leading-relaxed italic">&ldquo;{result.summary}&rdquo;</p>
                   </div>
-
                   <div className="space-y-4">
-                    <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                      Sözleşme Güçlü Yanları
-                    </h5>
+                    <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sözleşme Güçlü Yanları</h5>
                     <div className="space-y-3">
                       {result.strengths.map((s, i) => (
                         <div key={i} className="flex gap-3 text-xs font-semibold text-slate-600">
@@ -503,68 +427,30 @@ function AnalyzerContent() {
                   </div>
                 </div>
               </div>
-
-              <button
-                onClick={reset}
-                className="w-full py-4 rounded-xl bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-2 group"
-              >
+              <button onClick={reset} className="w-full py-4 rounded-xl bg-slate-900 text-white text-[11px] font-black uppercase tracking-[0.2em] hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-2 group">
                 <Zap className="w-4 h-4 text-amber-400 group-hover:scale-125 transition-transform" />
                 New Analysis Session
               </button>
             </div>
-
-            {/* Main Analysis Results */}
             <div className="lg:col-span-8 space-y-6">
               <div className="flex items-center justify-between px-2">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">
-                  Extraction Report
-                </h3>
-                <span className="text-[10px] font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded uppercase">
-                  {result.risks.length} Anomalies Found
-                </span>
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Extraction Report</h3>
+                <span className="text-[10px] font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded uppercase">{result.risks.length} Anomalies Found</span>
               </div>
-
               <div className="space-y-4">
                 {result.risks.map((risk, i) => (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.1 }}
-                    key={i}
-                    className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm"
-                  >
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }} key={i} className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                     <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        {risk.clause}
-                      </span>
-                      <span
-                        className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-bold uppercase",
-                          risk.level === "Yüksek"
-                            ? "bg-rose-100 text-rose-700"
-                            : risk.level === "Orta"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-slate-100 text-slate-700"
-                        )}
-                      >
-                        {risk.level}
-                      </span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{risk.clause}</span>
+                      <span className={cn("px-2 py-0.5 rounded text-[10px] font-bold uppercase", risk.level === "Yüksek" ? "bg-rose-100 text-rose-700" : risk.level === "Orta" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-700")}>{risk.level}</span>
                     </div>
-
                     <div className="p-8 space-y-6">
-                      <p className="text-slate-700 leading-relaxed text-base font-normal">
-                        {risk.description}
-                      </p>
-
+                      <p className="text-slate-700 leading-relaxed text-base font-normal">{risk.description}</p>
                       <div className="flex gap-4 items-start bg-slate-900 text-white p-5 rounded-lg shadow-xl shadow-slate-900/10">
                         <Zap className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
                         <div>
-                          <div className="text-[10px] font-black uppercase tracking-[0.2em] mb-1.5 opacity-50 text-white">
-                            Defense Suggestion
-                          </div>
-                          <p className="text-sm font-medium leading-relaxed">
-                            {risk.suggestion}
-                          </p>
+                          <div className="text-[10px] font-black uppercase tracking-[0.2em] mb-1.5 opacity-50 text-white">Defense Suggestion</div>
+                          <p className="text-sm font-medium leading-relaxed">{risk.suggestion}</p>
                         </div>
                       </div>
                     </div>

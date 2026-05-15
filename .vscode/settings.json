@@ -1,14 +1,17 @@
 {
-    "java.configuration.updateBuildConfiguration": "interactive",
-    "css.lint.unknownAtRules": "ignore",
-    "scss.lint.unknownAtRules": "ignore",
-    "java.import.exclusions": [
-        "**/node_modules/**",
-        "**/.git/**"
-    ],
-    "files.exclude": {
-        "**/.git": true,
-        "**/.DS_Store": true,
-        "**/node_modules": false
-    }
+  "java.project.importOnFirstTimeStartup": "automatic",
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.project.resourceFilters": [
+    "node_modules",
+    ".git"
+  ],
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": false
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true
+  }
 }
